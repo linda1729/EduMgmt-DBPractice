@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+.venv/
+.venv_codex/
+
+# Environment files
+.env
+.env.example
+
+# IDE settings
+.idea/
+.vscode/
+
+# Flask / Django instance folder
+instance/
+media/
+
+# Database / migrations
+migrations/
+
+# Node / frontend
+node_modules/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db

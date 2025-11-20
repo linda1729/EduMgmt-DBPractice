@@ -1,0 +1,7 @@
+- 调整前端结构：删除 CoreUI 示例视图与 Doc 组件（frontend/src/views/*, frontend/src/components/Docs*），仅保留业务页面。
+- 新增 React API 层与分页组件（frontend/src/api/*.js, frontend/src/components/PaginationControls.js），统一请求 Flask /api/v1 接口。
+- 重写仪表盘与学生/课程/选课 CRUD 视图（frontend/src/views/**），用 CoreUI 卡片、表格和图表展示实时数据。
+- 更新全局路由、导航与样式（frontend/src/routes.js, frontend/src/_nav.js, frontend/src/scss/style.scss 等），确保 UI 与后端字段一致。
+- 新增本地/跨域接入能力：提供 .env 示例、启用 Flask-CORS、默认回退 SQLite、增加数据库连通 CLI 命令，前端可通过 VITE_API_BASE_URL 直接访问 API。（requirements.txt, .env.example, frontend/.env.example, app/config.py, app/__init__.py, app/cli.py）
+- 扩展后端 API：新增分析、教师、教室、授课蓝图与仓储，补充学生/课程/选课统计接口，并在前端接入新的 REST 数据源（app/constants.py, app/api/*, app/repositories/*, frontend/src/api/** 等）。
+- 修复前端白屏：让 Vite dev server 的 host/port/proxy 支持 .env 配置，默认监听 0.0.0.0:3000，避免 127.0.0.1 绑定受限导致启动失败。（frontend/vite.config.mjs, frontend/.env.example）

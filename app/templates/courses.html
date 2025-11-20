@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}课程管理 · 教务管理平台{% endblock %}
+
+{% block content %}
+  <section class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">课程总数</p>
+          <p class="display-6 fw-semibold mb-0">{{ course_total }}</p>
+          <p class="text-muted small mb-0">覆盖所有院系</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">启用课程</p>
+          <p class="display-6 fw-semibold mb-0">{{ active_course_count }}</p>
+          <p class="text-muted small mb-0">当前开放状态</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">平均学分</p>
+          <p class="display-6 fw-semibold mb-0">{{ avg_credit }}</p>
+          <p class="text-muted small mb-0">课程平均值</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-4 mb-4 align-items-stretch">
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-journal-plus me-2 text-success"></i>新增课程</h2>
+        </div>
+        <div class="card-body">
+          <form class="row g-3 justify-content-center text-center" method="post" action="{{ url_for('main.manage_courses') }}">
+            <div class="col-sm-6">
+              <label class="form-label" for="cno">课程号 *</label>
+              <input class="form-control" id="cno" name="cno" maxlength="10" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="cname">课程名称 *</label>
+              <input class="form-control" id="cname" name="cname" maxlength="100" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="credits">学分 *</label>
+              <input class="form-control" id="credits" name="credits" type="number" min="1" max="10" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="hours">学时 *</label>
+              <input class="form-control" id="hours" name="hours" type="number" min="8" max="128" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="course-dno">开课院系</label>
+              <select class="form-select" id="course-dno" name="dno">
+                <option value="">未指定</option>
+                {% for dept in departments %}
+                  <option value="{{ dept.dno }}">{{ dept.dname }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="prereq">先修课</label>
+              <select class="form-select" id="prereq" name="prereq_cno">
+                <option value="">无</option>
+                {% for course in all_courses %}
+                  <option value="{{ course.cno }}">{{ course.cno }} · {{ course.cname }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="is-active">是否启用</label>
+              <select class="form-select" id="is-active" name="is_active">
+                <option value="true" selected>启用</option>
+                <option value="false">停用</option>
+              </select>
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">创建课程</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h3 class="h6 mb-0"><i class="bi bi-building me-2 text-info"></i>院系课程数量</h3>
+        </div>
+        <div class="card-body">
+          <canvas id="courseDeptChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0 text-center">
+      <h2 class="h5 mb-1"><i class="bi bi-journal-bookmark me-2 text-success"></i>课程列表</h2>
+      <p class="text-muted small mb-0">支持关键字与院系筛选，便于排课与先修关系维护。</p>
+    </div>
+    <div class="card-body">
+      <form class="row g-2 align-items-end mb-4 justify-content-center text-center" method="get" action="{{ url_for('main.manage_courses') }}">
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="course-search">关键词</label>
+          <input class="form-control" id="course-search" name="q" placeholder="按课程号或名称检索" value="{{ search }}">
+        </div>
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="course-dept-filter">院系筛选</label>
+          <select class="form-select" id="course-dept-filter" name="department">
+            <option value="">全部院系</option>
+            {% for dept in departments %}
+              <option value="{{ dept.dno }}" {% if dept_filter == dept.dno %}selected{% endif %}>{{ dept.dname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6 col-lg-4 text-sm-end">
+          <button class="btn btn-outline-primary me-2" type="submit">筛选</button>
+          <a class="btn btn-link text-decoration-none" href="{{ url_for('main.manage_courses') }}">清除条件</a>
+        </div>
+      </form>
+      {% if courses %}
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle" id="courses-table">
+            <thead>
+              <tr>
+                <th scope="col">课程号</th>
+                <th scope="col">名称</th>
+                <th scope="col">学分</th>
+                <th scope="col">学时</th>
+                <th scope="col">院系</th>
+                <th scope="col">先修课</th>
+                <th scope="col">状态</th>
+                <th scope="col" class="text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for course in courses %}
+                <tr>
+                  <td class="fw-semibold">{{ course.cno }}</td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-course-{{ course.cno }}" name="cname" value="{{ course.cname }}" maxlength="100">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-course-{{ course.cno }}" name="credits" type="number" min="1" max="10" value="{{ course.credits }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-course-{{ course.cno }}" name="hours" type="number" min="8" max="128" value="{{ course.hours }}">
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-course-{{ course.cno }}" name="dno">
+                      <option value="">未指定</option>
+                      {% for dept in departments %}
+                        <option value="{{ dept.dno }}" {% if course.dno == dept.dno %}selected{% endif %}>{{ dept.dname }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-course-{{ course.cno }}" name="prereq_cno">
+                      <option value="">无</option>
+                      {% for option in all_courses %}
+                        <option value="{{ option.cno }}" {% if course.prereq_cno == option.cno %}selected{% endif %}>{{ option.cno }} · {{ option.cname }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-course-{{ course.cno }}" name="is_active">
+                      <option value="true" {% if course.is_active %}selected{% endif %}>启用</option>
+                      <option value="false" {% if not course.is_active %}selected{% endif %}>停用</option>
+                    </select>
+                  </td>
+                  <td class="text-end">
+                    <div class="d-flex justify-content-end gap-2">
+                      <form id="update-course-{{ course.cno }}" method="post" action="{{ url_for('main.update_course', cno=course.cno) }}"></form>
+                      <button class="btn btn-sm btn-outline-primary" form="update-course-{{ course.cno }}" type="submit">保存</button>
+                      <form method="post" action="{{ url_for('main.delete_course', cno=course.cno) }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('确认删除课程 {{ course.cno }} 吗？')">删除</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">暂无课程记录。</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      function ready(fn){ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fn);}else{fn();} }
+      function ensureChart(cb){
+        if (window.Chart) return cb();
+        var s=document.createElement('script');
+        s.src="{{ url_for('static', filename='js/chart.umd.min.js') }}";
+        s.onload=cb; s.onerror=function(){ console.error('Chart.js 加载失败'); };
+        document.body.appendChild(s);
+      }
+      function ensureMinHeight(canvas, px){
+        if (!canvas) return;
+        const h = parseFloat(getComputedStyle(canvas).height||'0');
+        if (!h || h < 10) canvas.style.minHeight = (px||260)+'px';
+      }
+      function setupTableFilter(inputId, tableId){
+        const input=document.getElementById(inputId);
+        const table=document.getElementById(tableId);
+        if(!input||!table) return;
+        const rows=Array.from(table.querySelectorAll('tbody tr'));
+        input.addEventListener('input',()=>{
+          const kws=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          rows.forEach(r=>{
+            if(!kws.length){ r.style.display=''; return; }
+            const txt=r.innerText.toLowerCase();
+            r.style.display = kws.every(k=>txt.includes(k)) ? '' : 'none';
+          });
+        });
+      }
+
+      ready(function(){
+        ensureChart(function(){
+          const ctx = document.getElementById('courseDeptChart');
+          ensureMinHeight(ctx, 260);
+
+          const labels = {{ course_dept_labels | tojson }};
+          const values = {{ course_dept_values | tojson }};
+          if (ctx && window.Chart && labels.length && values.length){
+            const colors = labels.map((_,i)=>`hsla(${(i*60)%360},70%,65%,0.85)`);
+            new Chart(ctx, {
+              type: 'doughnut',
+              data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+              options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1.6,
+                plugins: { legend: { position: 'bottom' } }
+              }
+            });
+          } else if (ctx) {
+            ctx.insertAdjacentHTML('afterend','<p class="text-muted small mb-0">暂无课程院系分布数据。</p>');
+          }
+
+          setupTableFilter('course-search','courses-table');
+        });
+      });
+    })();
+  </script>
+{% endblock %}

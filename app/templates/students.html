@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}学生管理 · 教务管理平台{% endblock %}
+
+{% block content %}
+  <section class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">在册学生</p>
+          <p class="display-6 fw-semibold mb-0">{{ student_total }}</p>
+          <p class="text-muted small mb-0">覆盖全部院系</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">女性学生</p>
+          <p class="display-6 fw-semibold mb-0">{{ gender_distribution.get('Female', 0) }}</p>
+          <p class="text-muted small mb-0">所有年级</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">男性学生</p>
+          <p class="display-6 fw-semibold mb-0">{{ gender_distribution.get('Male', 0) }}</p>
+          <p class="text-muted small mb-0">所有年级</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-4 mb-4 align-items-stretch">
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-person-plus me-2 text-primary"></i>新增学生</h2>
+        </div>
+        <div class="card-body">
+          <form class="row g-3 justify-content-center text-center" method="post" action="{{ url_for('main.manage_students') }}">
+            <div class="col-sm-6">
+              <label class="form-label" for="sno">学号 *</label>
+              <input class="form-control" id="sno" name="sno" maxlength="12" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="sname">姓名 *</label>
+              <input class="form-control" id="sname" name="sname" maxlength="50" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="gender">性别 *</label>
+              <select class="form-select" id="gender" name="gender" required>
+                <option value="">请选择</option>
+                {% for option in gender_options %}
+                  <option value="{{ option }}">{{ option }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="enroll_year">入学年份 *</label>
+              <input class="form-control" id="enroll_year" name="enroll_year" type="number" min="1990" max="2100" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="birth_date">出生日期</label>
+              <input class="form-control" id="birth_date" name="birth_date" type="date">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="dno">所属院系</label>
+              <select class="form-select" id="dno" name="dno">
+                <option value="">未指定</option>
+                {% for dept in departments %}
+                  <option value="{{ dept.dno }}">{{ dept.dname }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="email">邮箱</label>
+              <input class="form-control" id="email" name="email" type="email" maxlength="100">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="phone">电话</label>
+              <input class="form-control" id="phone" name="phone" maxlength="20">
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">创建学生</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h3 class="h6 mb-0"><i class="bi bi-diagram-3 me-2 text-info"></i>院系分布</h3>
+        </div>
+        <div class="card-body">
+          <canvas id="studentDeptChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0 text-center">
+      <h2 class="h5 mb-1"><i class="bi bi-mortarboard me-2 text-primary"></i>学生列表</h2>
+      <p class="text-muted small mb-0">最多展示 200 名学生，可使用搜索与筛选细化结果。</p>
+    </div>
+    <div class="card-body">
+      <form class="row g-2 align-items-end mb-4 text-center justify-content-center" method="get" action="{{ url_for('main.manage_students') }}">
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="search">关键词</label>
+          <input class="form-control" id="search" name="q" placeholder="按学号或姓名检索" value="{{ search }}">
+        </div>
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="dept-filter">院系筛选</label>
+          <select class="form-select" id="dept-filter" name="department">
+            <option value="">全部院系</option>
+            {% for dept in departments %}
+              <option value="{{ dept.dno }}" {% if dept_filter == dept.dno %}selected{% endif %}>{{ dept.dname }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6 col-lg-4 text-sm-end">
+          <button class="btn btn-outline-primary me-2" type="submit">筛选</button>
+          <a class="btn btn-link text-decoration-none" href="{{ url_for('main.manage_students') }}">清除条件</a>
+        </div>
+      </form>
+      {% if students %}
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle" id="students-table">
+            <thead>
+              <tr>
+                <th scope="col">学号</th>
+                <th scope="col">姓名</th>
+                <th scope="col">性别</th>
+                <th scope="col">院系</th>
+                <th scope="col">入学年份</th>
+                <th scope="col">出生日期</th>
+                <th scope="col">联系方式</th>
+                <th scope="col" class="text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for student in students %}
+                <tr>
+                  <td class="fw-semibold">{{ student.sno }}</td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-{{ student.sno }}" name="sname" value="{{ student.sname }}" maxlength="50">
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-{{ student.sno }}" name="gender">
+                      {% for option in gender_options %}
+                        <option value="{{ option }}" {% if student.gender == option %}selected{% endif %}>{{ option }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-{{ student.sno }}" name="dno">
+                      <option value="">未指定</option>
+                      {% for dept in departments %}
+                        <option value="{{ dept.dno }}" {% if student.dno == dept.dno %}selected{% endif %}>{{ dept.dname }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-{{ student.sno }}" name="enroll_year" type="number" min="1990" max="2100" value="{{ student.enroll_year }}">
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-{{ student.sno }}" name="birth_date" type="date" value="{{ student.birth_date.strftime('%Y-%m-%d') if student.birth_date else '' }}">
+                  </td>
+                  <td>
+                    <div class="d-flex flex-column gap-2">
+                      <input class="form-control form-control-sm" form="update-{{ student.sno }}" name="email" type="email" placeholder="邮箱" value="{{ student.email or '' }}">
+                      <input class="form-control form-control-sm" form="update-{{ student.sno }}" name="phone" placeholder="电话" value="{{ student.phone or '' }}">
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <div class="d-flex justify-content-end gap-2">
+                      <form id="update-{{ student.sno }}" method="post" action="{{ url_for('main.update_student', sno=student.sno) }}"></form>
+                      <button class="btn btn-sm btn-outline-primary" form="update-{{ student.sno }}" type="submit">保存</button>
+                      <form method="post" action="{{ url_for('main.delete_student', sno=student.sno) }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('确认删除 {{ student.sname }} 吗？')">删除</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">当前没有学生数据。</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <!-- CDN优先；若担心SRI，可去掉 integrity；也内置了本地回退 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      function ready(fn){ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fn);}else{fn();} }
+      function ensureChart(cb){
+        if (window.Chart) return cb();
+        // 本地回退：若你已把 chart.umd.min.js 放到 app/static/js/，这段会生效
+        var s=document.createElement('script');
+        s.src="{{ url_for('static', filename='js/chart.umd.min.js') }}";
+        s.onload=cb; s.onerror=function(){ console.error('Chart.js 加载失败'); };
+        document.body.appendChild(s);
+      }
+      function ensureCanvasMinHeight(canvas, px){
+        try{
+          const h = parseFloat(getComputedStyle(canvas).height);
+          if (!h || h < 10) canvas.style.minHeight = (px||260)+'px';
+        }catch(e){}
+      }
+      function setupTableFilter(inputId, tableId){
+        const input=document.getElementById(inputId);
+        const table=document.getElementById(tableId);
+        if(!input||!table) return;
+        const rows=Array.from(table.querySelectorAll('tbody tr'));
+        input.addEventListener('input',()=>{
+          const kws=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          rows.forEach(r=>{
+            if(!kws.length){ r.style.display=''; return; }
+            const txt=r.innerText.toLowerCase();
+            r.style.display = kws.every(k=>txt.includes(k)) ? '' : 'none';
+          });
+        });
+      }
+
+      ready(function(){
+        ensureChart(function(){
+          const ctx = document.getElementById('studentDeptChart');
+          if (ctx && window.Chart){
+            // 兜底最小高度，避免容器为0导致不可见
+            ensureCanvasMinHeight(ctx, 280);
+
+            const labels = {{ dept_distribution_labels | tojson }};
+            const values = {{ dept_distribution_values | tojson }};
+
+            if (labels && values && labels.length && values.length){
+              const colors = labels.map((_,i)=>`hsla(${(i*60)%360},70%,60%,0.85)`);
+              new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label:'学生数', data: values, backgroundColor: colors, borderRadius: 12 }] },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: true,   // 方案A：按比例自适应
+                  aspectRatio: 1.6,
+                  plugins: { legend: { display:false } },
+                  scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }
+                }
+              });
+            } else {
+              ctx.insertAdjacentHTML('afterend','<p class="text-muted small mb-0">暂无院系分布数据。</p>');
+            }
+          }
+          setupTableFilter('search','students-table');
+        });
+      });
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}教务管理平台 · 仪表盘{% endblock %}
+
+{% block content %}
+  <section class="mb-4">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4">
+      <div class="col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <p class="text-uppercase text-muted small mb-1">学生总数</p>
+            <p class="display-6 fw-semibold mb-0">{{ student_count }}</p>
+            <p class="text-muted mb-0 small">包含所有在籍学生</p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <p class="text-uppercase text-muted small mb-1">课程数量</p>
+            <p class="display-6 fw-semibold mb-0">{{ course_count }}</p>
+            <p class="text-muted mb-0 small">当前开放课程</p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <p class="text-uppercase text-muted small mb-1">授课教师</p>
+            <p class="display-6 fw-semibold mb-0">{{ teacher_count }}</p>
+            <p class="text-muted mb-0 small">专任/兼职教师</p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <p class="text-uppercase text-muted small mb-1">教室数量</p>
+            <p class="display-6 fw-semibold mb-0">{{ classroom_count }}</p>
+            <p class="text-muted mb-0 small">可授课场地</p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <p class="text-uppercase text-muted small mb-1">活跃学期</p>
+            <p class="display-6 fw-semibold mb-0">{{ active_terms|length }}</p>
+            <p class="text-muted mb-0 small">
+              {{ active_terms | join('、') if active_terms else '暂无数据' }}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <p class="text-uppercase text-muted small mb-1">选课记录</p>
+            <p class="display-6 fw-semibold mb-0">{{ enrollment_count }}</p>
+            <p class="text-muted mb-0 small">SC 表累计数据</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="row g-4 mb-4">
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-bar-chart-line me-2 text-primary"></i>热门课程走势</h2>
+          <p class="text-muted small mb-0">选课人数前五课程柱状图</p>
+        </div>
+        <div class="card-body">
+          <canvas id="dashboardCourseChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-pie-chart me-2 text-success"></i>选课状态分布</h2>
+          <p class="text-muted small mb-0">全量选课记录状态占比</p>
+        </div>
+        <div class="card-body">
+          <canvas id="dashboardStatusChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0">
+      <h2 class="h5 mb-0"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>核心数据摘要</h2>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">指标</th>
+              <th scope="col">数值</th>
+              <th scope="col">备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>学生总数</td>
+              <td class="fw-semibold">{{ student_count }}</td>
+              <td>包含所有在籍学生档案</td>
+            </tr>
+            <tr>
+              <td>课程数量</td>
+              <td class="fw-semibold">{{ course_count }}</td>
+              <td>涵盖当前开放课程</td>
+            </tr>
+            <tr>
+              <td>授课教师</td>
+              <td class="fw-semibold">{{ teacher_count }}</td>
+              <td>含专任、兼职及外聘教师</td>
+            </tr>
+            <tr>
+              <td>教室数量</td>
+              <td class="fw-semibold">{{ classroom_count }}</td>
+              <td>可用于授课的教室/场地总数</td>
+            </tr>
+            <tr>
+              <td>活跃学期</td>
+              <td class="fw-semibold">{{ active_terms|length }}</td>
+              <td>{{ active_terms | join('、') if active_terms else '暂无数据' }}</td>
+            </tr>
+            <tr>
+              <td>选课记录</td>
+              <td class="fw-semibold">{{ enrollment_count }}</td>
+              <td>SC 表累计选课数据量</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <section class="row g-4">
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-fire me-2 text-warning"></i>选课热门课程</h2>
+          <p class="text-muted small mb-0">选课人数 Top 5，辅助排课容量</p>
+        </div>
+        <div class="card-body">
+          {% if top_courses %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">课程号</th>
+                    <th scope="col">课程名称</th>
+                    <th scope="col" class="text-end">选课人数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in top_courses %}
+                    <tr>
+                      <td class="fw-semibold">{{ row.cno }}</td>
+                      <td>{{ row.cname }}</td>
+                      <td class="text-end">
+                        <span class="badge bg-primary-subtle text-primary-emphasis px-3">{{ row.enrolled_count }}</span>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">暂无选课数据。</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>最新选课记录</h2>
+          <p class="text-muted small mb-0">实时掌握学生动向</p>
+        </div>
+        <div class="card-body p-0">
+          {% if recent_enrollments %}
+            {% set status_classes = {
+              'completed': 'bg-success-subtle text-success-emphasis',
+              'enrolled': 'bg-info-subtle text-info-emphasis',
+              'dropped': 'bg-danger-subtle text-danger-emphasis'
+            } %}
+            <ul class="list-group list-group-flush">
+              {% for enrollment, student, course in recent_enrollments %}
+                <li class="list-group-item">
+                  <div class="d-flex flex-column gap-1">
+                    <div class="fw-semibold">{{ student.sname }} <span class="text-muted">({{ enrollment.sno }})</span></div>
+                    <div class="text-muted small">{{ course.cname }} · {{ enrollment.year_taken }} {{ enrollment.term }}</div>
+                    <div class="d-flex align-items-center justify-content-between">
+                      <small class="text-muted mb-0">{{ enrollment.enroll_date.strftime('%Y-%m-%d %H:%M') if enrollment.enroll_date else '—' }}</small>
+                      <span class="badge {{ status_classes.get(enrollment.status, 'bg-secondary-subtle text-secondary-emphasis') }}">{{ enrollment.status }}</span>
+                    </div>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted p-3 mb-0">尚未有选课记录。</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {# 1) 先把后端数据塞进一个全局对象，便于调试 #}
+  <script>
+    window.DASHBOARD_DATA = {
+      courseLabels: {{ top_course_chart | map(attribute='label') | list | tojson }},
+      courseValues: {{ top_course_chart | map(attribute='value') | list | tojson }},
+      statusLabels: {{ status_labels | tojson }},
+      statusValues: {{ status_values | tojson }}
+    };
+  </script>
+
+  {# 2) 先尝试用 CDN 加载 Chart.js（不带 integrity，避免 SRI 拦截）；失败则回退到本地静态文件 #}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      function ensureChartLoaded(cb) {
+        if (window.Chart) return cb();
+        // 本地回退：请确保你已把 chart.umd.min.js 放到 app/static/js/ 下
+        var s = document.createElement('script');
+        s.src = "{{ url_for('static', filename='js/chart.umd.min.js') }}";
+        s.onload = cb;
+        s.onerror = function () {
+          console.error('Chart.js 加载失败（CDN 与本地均不可用）。');
+        };
+        document.body.appendChild(s);
+      }
+
+      function initCharts() {
+        const { courseLabels = [], courseValues = [], statusLabels = [], statusValues = [] } = window.DASHBOARD_DATA || {};
+        console.log('[Dashboard] 数据检查 =>', { courseLabels, courseValues, statusLabels, statusValues, chartLoaded: !!window.Chart });
+
+        // —— 课程 Top5 柱状图 ——
+        const courseCanvas = document.getElementById('dashboardCourseChart');
+        if (courseCanvas && courseLabels.length && courseValues.length && window.Chart) {
+          const colors = courseLabels.map((_, idx) => `hsla(${(idx * 72) % 360}, 70%, 65%, 0.85)`);
+          new Chart(courseCanvas, {
+            type: 'bar',
+            data: {
+              labels: courseLabels,
+              datasets: [{
+                label: '选课人数',
+                data: courseValues,
+                backgroundColor: colors,
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true, // 方案A：按比例自适应
+              aspectRatio: 1.8,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { precision: 0 }
+                }
+              }
+            }
+          });
+        } else if (courseCanvas && window.Chart) {
+          // 有画布但没数据：给出轻量提示，避免“啥都不画”
+          courseCanvas.parentElement.insertAdjacentHTML('beforeend',
+            '<p class="text-muted small mb-0">暂无热门课程数据。</p>');
+        }
+
+        // —— 选课状态环图 ——
+        const statusCanvas = document.getElementById('dashboardStatusChart');
+        if (statusCanvas && statusLabels.length && statusValues.length && window.Chart) {
+          const statusColors = ['#0ea5e9', '#10b981', '#f97316', '#f43f5e'];
+          new Chart(statusCanvas, {
+            type: 'doughnut',
+            data: {
+              labels: statusLabels,
+              datasets: [{
+                data: statusValues,
+                backgroundColor: statusLabels.map((_, idx) => statusColors[idx % statusColors.length])
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 1.6,
+              plugins: { legend: { position: 'bottom' } }
+            }
+          });
+        } else if (statusCanvas && window.Chart) {
+          statusCanvas.parentElement.insertAdjacentHTML('beforeend',
+            '<p class="text-muted small mb-0">暂无选课状态数据。</p>');
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+          ensureChartLoaded(initCharts);
+        });
+      } else {
+        ensureChartLoaded(initCharts);
+      }
+    })();
+  </script>
+{% endblock %}
+

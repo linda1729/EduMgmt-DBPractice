@@ -1,0 +1,27 @@
+:root {
+  --card-radius: 1rem;
+}
+
+body {
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+
+.card {
+  border-radius: var(--card-radius);
+}
+
+.card + .card {
+  margin-top: 1rem;
+}
+
+.list-group-item {
+  padding: 0.9rem 1.25rem;
+}
+
+canvas {
+  max-height: 320px;
+}
+
+footer {
+  color: #6b7280;
+}

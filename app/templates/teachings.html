@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}授课安排 · 教务管理平台{% endblock %}
+
+{% block content %}
+  <section class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">授课安排</p>
+          <p class="display-6 fw-semibold mb-0">{{ teaching_total }}</p>
+          <p class="text-muted small mb-0">课程与班级配置</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">开课学期数</p>
+          <p class="display-6 fw-semibold mb-0">{{ teaching_term_labels|length }}</p>
+          <p class="text-muted small mb-0">基于现有排课</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          <p class="text-uppercase text-muted small mb-1">平均容量</p>
+          <p class="display-6 fw-semibold mb-0">{{ avg_teaching_capacity }}</p>
+          <p class="text-muted small mb-0">单位：座位数</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="row g-4 mb-4 align-items-stretch">
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h2 class="h5 mb-0"><i class="bi bi-calendar-plus me-2 text-danger"></i>新增授课安排</h2>
+        </div>
+        <div class="card-body">
+          <form class="row g-3 justify-content-center text-center" method="post" action="{{ url_for('main.manage_teachings') }}">
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-course">课程 *</label>
+              <select class="form-select" id="teach-course" name="cno" required>
+                <option value="">请选择课程</option>
+                {% for course in courses %}
+                  <option value="{{ course.cno }}">{{ course.cno }} · {{ course.cname }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-teacher">教师 *</label>
+              <select class="form-select" id="teach-teacher" name="tno" required>
+                <option value="">请选择教师</option>
+                {% for teacher in teachers %}
+                  <option value="{{ teacher.tno }}">{{ teacher.tno }} · {{ teacher.tname }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-year">开课年份 *</label>
+              <input class="form-control" id="teach-year" name="year_offered" type="number" min="1990" max="2100" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-term">学期 *</label>
+              <select class="form-select" id="teach-term" name="term" required>
+                <option value="">请选择学期</option>
+                {% for term in terms %}
+                  <option value="{{ term.term_code }}">{{ term.term_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-room">教室</label>
+              <select class="form-select" id="teach-room" name="room_id">
+                <option value="">未指定</option>
+                {% for classroom in classrooms %}
+                  <option value="{{ classroom.room_id }}">{{ classroom.room_id }} · {{ classroom.building }} {{ classroom.room_no }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-capacity">容量</label>
+              <input class="form-control" id="teach-capacity" name="capacity" type="number" min="10" max="1000" placeholder="默认120">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-start">开始日期</label>
+              <input class="form-control" id="teach-start" name="start_date" type="date">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="teach-end">结束日期</label>
+              <input class="form-control" id="teach-end" name="end_date" type="date">
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">创建授课安排</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h3 class="h6 mb-0"><i class="bi bi-calendar-week me-2 text-danger"></i>学期分布</h3>
+        </div>
+        <div class="card-body">
+          <canvas id="teachingTermChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-0 text-center">
+      <h2 class="h5 mb-1"><i class="bi bi-calendar2-week me-2 text-danger"></i>授课安排列表</h2>
+      <p class="text-muted small mb-0">协调课程、教师和教室排期，可快速检索。</p>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3 justify-content-center">
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="teaching-search">快速模糊搜索</label>
+          <input class="form-control" id="teaching-search" placeholder="输入课程、教师或学期过滤表格">
+        </div>
+      </div>
+      {% if teachings %}
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle" id="teachings-table">
+            <thead>
+              <tr>
+                <th scope="col">课程</th>
+                <th scope="col">教师</th>
+                <th scope="col">学年/学期</th>
+                <th scope="col">教室</th>
+                <th scope="col">容量</th>
+                <th scope="col">起止日期</th>
+                <th scope="col" class="text-end">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for teaching, course, teacher, classroom in teachings %}
+                <tr>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-teaching-{{ teaching.teach_id }}" name="cno">
+                      {% for option in courses %}
+                        <option value="{{ option.cno }}" {% if teaching.cno == option.cno %}selected{% endif %}>{{ option.cno }} · {{ option.cname }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-teaching-{{ teaching.teach_id }}" name="tno">
+                      {% for option in teachers %}
+                        <option value="{{ option.tno }}" {% if teaching.tno == option.tno %}selected{% endif %}>{{ option.tno }} · {{ option.tname }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <div class="d-flex gap-2">
+                      <input class="form-control form-control-sm" form="update-teaching-{{ teaching.teach_id }}" name="year_offered" type="number" min="1990" max="2100" value="{{ teaching.year_offered }}">
+                      <select class="form-select form-select-sm" form="update-teaching-{{ teaching.teach_id }}" name="term">
+                        {% for term in terms %}
+                          <option value="{{ term.term_code }}" {% if teaching.term == term.term_code %}selected{% endif %}>{{ term.term_name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" form="update-teaching-{{ teaching.teach_id }}" name="room_id">
+                      <option value="">未指定</option>
+                      {% for classroom in classrooms %}
+                        <option value="{{ classroom.room_id }}" {% if teaching.room_id == classroom.room_id %}selected{% endif %}>{{ classroom.room_id }} · {{ classroom.building }} {{ classroom.room_no }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" form="update-teaching-{{ teaching.teach_id }}" name="capacity" type="number" min="10" max="1000" value="{{ teaching.capacity }}">
+                  </td>
+                  <td>
+                    <div class="d-flex flex-column gap-2">
+                      <input class="form-control form-control-sm" form="update-teaching-{{ teaching.teach_id }}" name="start_date" type="date" value="{{ teaching.start_date.strftime('%Y-%m-%d') if teaching.start_date else '' }}">
+                      <input class="form-control form-control-sm" form="update-teaching-{{ teaching.teach_id }}" name="end_date" type="date" value="{{ teaching.end_date.strftime('%Y-%m-%d') if teaching.end_date else '' }}">
+                    </div>
+                  </td>
+                  <td class="text-end">
+                    <div class="d-flex justify-content-end gap-2">
+                      <form id="update-teaching-{{ teaching.teach_id }}" method="post" action="{{ url_for('main.update_teaching', teach_id=teaching.teach_id) }}"></form>
+                      <button class="btn btn-sm btn-outline-primary" form="update-teaching-{{ teaching.teach_id }}" type="submit">保存</button>
+                      <form method="post" action="{{ url_for('main.delete_teaching', teach_id=teaching.teach_id) }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('确认删除授课安排 {{ teaching.teach_id }} 吗？')">删除</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">暂无授课安排。</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      function ready(fn){ if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',fn);}else{fn();} }
+      function ensureChart(cb){
+        if (window.Chart) return cb();
+        var s=document.createElement('script');
+        s.src="{{ url_for('static', filename='js/chart.umd.min.js') }}";
+        s.onload=cb; s.onerror=function(){ console.error('Chart.js 加载失败'); };
+        document.body.appendChild(s);
+      }
+      function ensureCanvasMinHeight(canvas, px){
+        try{
+          const h = parseFloat(getComputedStyle(canvas).height);
+          if (!h || h < 10) canvas.style.minHeight = (px||260)+'px';
+        }catch(e){}
+      }
+      function setupTableFilter(inputId, tableId){
+        const input=document.getElementById(inputId);
+        const table=document.getElementById(tableId);
+        if(!input||!table) return;
+        const rows=Array.from(table.querySelectorAll('tbody tr'));
+        input.addEventListener('input',()=>{
+          const kws=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          rows.forEach(r=>{
+            if(!kws.length){ r.style.display=''; return; }
+            const txt=r.innerText.toLowerCase();
+            r.style.display = kws.every(k=>txt.includes(k)) ? '' : 'none';
+          });
+        });
+      }
+
+      ready(function(){
+        ensureChart(function(){
+          const ctx = document.getElementById('teachingTermChart');
+          if (ctx && window.Chart){
+            ensureCanvasMinHeight(ctx, 260);
+
+            const labels = {{ teaching_term_labels | tojson }};
+            const values = {{ teaching_term_values | tojson }};
+
+            if (labels && values && labels.length && values.length){
+              const colors = labels.map((_,i)=>`hsla(${(i*90)%360},65%,60%,0.85)`);
+              new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label:'授课次数', data: values, backgroundColor: colors, borderRadius: 12 }] },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: true,
+                  aspectRatio: 1.6,
+                  plugins: { legend: { display:false } },
+                  scales: { y: { beginAtZero:true, ticks:{ precision:0 } } }
+                }
+              });
+            } else {
+              ctx.insertAdjacentHTML('afterend','<p class="text-muted small mb-0">暂无学期分布数据。</p>');
+            }
+          }
+          setupTableFilter('teaching-search','teachings-table');
+        });
+      });
+    })();
+  </script>
+{% endblock %}
