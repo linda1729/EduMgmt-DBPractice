@@ -8,6 +8,12 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from ..constants import (
+    ENTITY_PK_DUP_MSG,
+    ENTITY_PK_EMPTY_MSG,
+    REFERENTIAL_COURSE_MSG,
+    REFERENTIAL_DEPARTMENT_MSG,
+)
 from ..extensions import db
 from ..models import Course, Department
 from ..repositories.course_repository import CourseRepository
@@ -50,11 +56,15 @@ def list_courses():
     per_page = max(min(int(request.args.get("per_page", 20)), 100), 1)
     department = request.args.get("department")
     keyword = request.args.get("q")
+    course_id = request.args.get("cno") or request.args.get("course_id")
+    name_filter = request.args.get("name")
     include_inactive = request.args.get("include_inactive", "false").lower() == "true"
 
     courses, total = CourseRepository.list(
         department=department,
         active_only=not include_inactive,
+        course_id=course_id,
+        name=name_filter,
         keyword=keyword,
         page=page,
         per_page=per_page,
@@ -79,19 +89,43 @@ def create_course():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
+    cno = str(payload["cno"]).strip()
+    if not cno:
+        return jsonify({"error": ENTITY_PK_EMPTY_MSG}), 400
+    if CourseRepository.get(cno):
+        return jsonify({"error": ENTITY_PK_DUP_MSG}), 400
+
     try:
         credits = _parse_int("credits", payload["credits"], minimum=1)
         hours = _parse_int("hours", payload["hours"], minimum=1)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    department_raw = payload.get("department")
+    if isinstance(department_raw, str):
+        department = department_raw.strip() or None
+    else:
+        department = department_raw
+    if department and not db.session.get(Department, department):
+        return jsonify({"error": REFERENTIAL_DEPARTMENT_MSG}), 400
+
+    prerequisite_raw = payload.get("prerequisite")
+    if isinstance(prerequisite_raw, str):
+        prerequisite = prerequisite_raw.strip() or None
+    else:
+        prerequisite = prerequisite_raw
+    if prerequisite and prerequisite == cno:
+        return jsonify({"error": "prerequisite cannot reference the course itself"}), 400
+    if prerequisite and not CourseRepository.get(prerequisite):
+        return jsonify({"error": REFERENTIAL_COURSE_MSG}), 400
+
     data = {
-        "cno": payload["cno"],
+        "cno": cno,
         "cname": payload["name"],
         "credits": credits,
         "hours": hours,
-        "dno": payload.get("department"),
-        "prereq_cno": payload.get("prerequisite"),
+        "dno": department,
+        "prereq_cno": prerequisite,
         "is_active": bool(payload.get("is_active", True)),
     }
 
@@ -125,9 +159,17 @@ def update_course(cno: str):
     if "name" in payload:
         update_data["cname"] = payload["name"]
     if "department" in payload:
-        update_data["dno"] = payload["department"]
+        department = payload["department"]
+        if department and not db.session.get(Department, department):
+            return jsonify({"error": REFERENTIAL_DEPARTMENT_MSG}), 400
+        update_data["dno"] = department
     if "prerequisite" in payload:
-        update_data["prereq_cno"] = payload["prerequisite"]
+        prerequisite = payload["prerequisite"]
+        if prerequisite and prerequisite == cno:
+            return jsonify({"error": "prerequisite cannot reference the course itself"}), 400
+        if prerequisite and not CourseRepository.get(prerequisite):
+            return jsonify({"error": REFERENTIAL_COURSE_MSG}), 400
+        update_data["prereq_cno"] = prerequisite
     if "is_active" in payload:
         update_data["is_active"] = bool(payload["is_active"])
 

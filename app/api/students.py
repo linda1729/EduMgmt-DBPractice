@@ -9,6 +9,11 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from ..constants import (
+    ENTITY_PK_DUP_MSG,
+    ENTITY_PK_EMPTY_MSG,
+    REFERENTIAL_DEPARTMENT_MSG,
+)
 from ..extensions import db
 from ..models import Department, Student
 from ..repositories.student_repository import StudentRepository
@@ -52,12 +57,16 @@ def list_students():
     department = request.args.get("department")
     enroll_year = request.args.get("enroll_year")
     keyword = request.args.get("q")
+    student_id = request.args.get("student_id") or request.args.get("sno")
+    name_filter = request.args.get("name")
 
     enroll_year_int = int(enroll_year) if enroll_year else None
 
     students, total = StudentRepository.list(
         department=department,
         enroll_year=enroll_year_int,
+        student_id=student_id,
+        name=name_filter,
         keyword=keyword,
         page=page,
         per_page=per_page,
@@ -81,6 +90,13 @@ def create_student():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
+    sno = str(payload["sno"]).strip()
+    if not sno:
+        return jsonify({"error": ENTITY_PK_EMPTY_MSG}), 400
+
+    if StudentRepository.get(sno):
+        return jsonify({"error": ENTITY_PK_DUP_MSG}), 400
+
     gender = payload["gender"]
     if gender not in {"Male", "Female", "Other"}:
         return jsonify({"error": "gender must be one of Male/Female/Other"}), 400
@@ -95,12 +111,16 @@ def create_student():
     except (TypeError, ValueError):
         return jsonify({"error": "enroll_year must be an integer"}), 400
 
+    department = payload.get("department")
+    if department and not db.session.get(Department, department):
+        return jsonify({"error": REFERENTIAL_DEPARTMENT_MSG}), 400
+
     data = {
-        "sno": payload["sno"],
+        "sno": sno,
         "sname": payload["name"],
         "gender": gender,
         "birth_date": birth_date,
-        "dno": payload.get("department"),
+        "dno": department,
         "enroll_year": enroll_year,
         "email": payload.get("email"),
         "phone": payload.get("phone"),
@@ -170,6 +190,12 @@ def update_student(sno: str):
 
     if "name" in payload:
         update_data["sname"] = payload["name"]
+
+    if "department" in payload:
+        department = payload["department"]
+        if department and not db.session.get(Department, department):
+            return jsonify({"error": REFERENTIAL_DEPARTMENT_MSG}), 400
+        update_data["dno"] = department
 
     try:
         student = StudentRepository.update(student, update_data)

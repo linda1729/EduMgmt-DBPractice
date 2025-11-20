@@ -8,7 +8,12 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from ..constants import TEACHER_TITLES
+from ..constants import (
+    ENTITY_PK_DUP_MSG,
+    ENTITY_PK_EMPTY_MSG,
+    REFERENTIAL_DEPARTMENT_MSG,
+    TEACHER_TITLES,
+)
 from ..extensions import db
 from ..models import Department, Teacher
 from ..repositories.teacher_repository import TeacherRepository
@@ -37,10 +42,16 @@ def list_teachers():
     department = request.args.get("department")
     title = request.args.get("title")
     keyword = request.args.get("q")
+    name_filter = request.args.get("name")
+    email_filter = request.args.get("email")
+    phone_filter = request.args.get("phone")
 
     teachers, total = TeacherRepository.list(
         department=department,
         title=title,
+        name=name_filter,
+        email=email_filter,
+        phone=phone_filter,
         keyword=keyword,
         page=page,
         per_page=per_page,
@@ -63,15 +74,24 @@ def create_teacher():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
+    tno = str(payload["tno"]).strip()
+    if not tno:
+        return jsonify({"error": ENTITY_PK_EMPTY_MSG}), 400
+    if TeacherRepository.get(tno):
+        return jsonify({"error": ENTITY_PK_DUP_MSG}), 400
+
     title = payload["title"]
     if title not in TEACHER_TITLES:
         return jsonify({"error": "Invalid teacher title"}), 400
+    department = payload.get("department")
+    if department and not db.session.get(Department, department):
+        return jsonify({"error": REFERENTIAL_DEPARTMENT_MSG}), 400
 
     data = {
-        "tno": payload["tno"],
+        "tno": tno,
         "tname": payload["name"],
         "title": title,
-        "dno": payload.get("department"),
+        "dno": department,
         "email": payload.get("email"),
         "phone": payload.get("phone"),
     }
@@ -110,7 +130,10 @@ def update_teacher(tno: str):
         update_data["title"] = title
 
     if "department" in payload:
-        update_data["dno"] = payload["department"]
+        department = payload["department"]
+        if department and not db.session.get(Department, department):
+            return jsonify({"error": REFERENTIAL_DEPARTMENT_MSG}), 400
+        update_data["dno"] = department
 
     for field in ("email", "phone"):
         if field in payload:

@@ -6,15 +6,31 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from .constants import ENROLLMENT_STATUSES, GENDER_OPTIONS, TEACHER_TITLES
+from .constants import (
+    ENROLLMENT_STATUSES,
+    ENTITY_PK_DUP_MSG,
+    ENTITY_PK_EMPTY_MSG,
+    GENDER_OPTIONS,
+    REFERENTIAL_CLASSROOM_MSG,
+    REFERENTIAL_COURSE_MSG,
+    REFERENTIAL_DEPARTMENT_MSG,
+    REFERENTIAL_STUDENT_COURSE_MSG,
+    REFERENTIAL_TEACHER_MSG,
+    REFERENTIAL_TERM_MSG,
+    TEACHER_TITLES,
+)
 from .extensions import db
 from .models import Classroom, Course, Department, Enrollment, Student, Teacher, Teaching, TermDict
 
 bp = Blueprint("main", __name__)
+
+
+def flash_integrity_error(detail: str) -> None:
+    flash(f"操作不符合完整性约束：{detail}", "danger")
 
 
 @bp.route("/")
@@ -158,8 +174,20 @@ def manage_students() -> str:
         email = form.get("email") or None
         phone = form.get("phone") or None
 
-        if not (sno and sname and gender and enroll_year_raw.isdigit()):
+        existing_student = db.session.get(Student, sno) if sno else None
+
+        if not sno:
+            flash(ENTITY_PK_EMPTY_MSG, "danger")
+        elif existing_student is not None:
+            flash(ENTITY_PK_DUP_MSG, "danger")
+        elif dno and db.session.get(Department, dno) is None:
+            flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
+        elif not (1 <= credits_raw.isdigit() and hours_raw.isdigit()):
+            pass  # handled earlier? hmm this branch is wrong
+        elif not (sname and gender and enroll_year_raw.isdigit()):
             flash("请完整填写学号、姓名、性别和入学年份（数字）。", "danger")
+        elif int(enroll_year_raw) < 1990:
+            flash_integrity_error("学生入学年份不能小于 1990。")
         elif gender not in GENDER_OPTIONS:
             flash("性别取值非法。", "danger")
         else:
@@ -190,7 +218,8 @@ def manage_students() -> str:
                 db.session.rollback()
                 flash(f"创建学生失败：{exc.orig}", "danger")
 
-    search = request.args.get("q", "").strip()
+    sno_search = request.args.get("sno", "").strip()
+    sname_search = request.args.get("name", "").strip()
     dept_filter = request.args.get("department", "").strip()
 
     student_query = (
@@ -199,11 +228,12 @@ def manage_students() -> str:
         .order_by(Student.enroll_year.desc(), Student.sno)
     )
 
-    if search:
-        pattern = f"%{search}%"
-        student_query = student_query.where(
-            or_(Student.sname.ilike(pattern), Student.sno.ilike(pattern))
-        )
+    if sno_search:
+        pattern = f"%{sno_search}%"
+        student_query = student_query.where(Student.sno.ilike(pattern))
+    if sname_search:
+        pattern = f"%{sname_search}%"
+        student_query = student_query.where(Student.sname.ilike(f"%{sname_search}%"))
 
     if dept_filter:
         student_query = student_query.where(Student.dno == dept_filter)
@@ -215,7 +245,8 @@ def manage_students() -> str:
         students=students,
         departments=departments,
         gender_options=GENDER_OPTIONS,
-        search=search,
+        sno_search=sno_search,
+        sname_search=sname_search,
         dept_filter=dept_filter,
         student_total=student_total,
         gender_distribution=gender_distribution,
@@ -237,14 +268,24 @@ def update_student(sno: str) -> str:
     student.sname = form.get("sname", student.sname).strip() or student.sname
     student.email = form.get("email") or None
     student.phone = form.get("phone") or None
-    student.dno = form.get("dno") or None
+    new_dno = form.get("dno") or None
+    if new_dno:
+        if db.session.get(Department, new_dno):
+            student.dno = new_dno
+        else:
+            flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
+    else:
+        student.dno = None
     gender = form.get("gender")
     if gender in GENDER_OPTIONS:
         student.gender = gender
     enroll_year_raw = form.get("enroll_year", "").strip()
     if enroll_year_raw:
         if enroll_year_raw.isdigit():
-            student.enroll_year = int(enroll_year_raw)
+            if int(enroll_year_raw) < 1990:
+                flash_integrity_error("学生入学年份不能小于 1990，已保持原值。")
+            else:
+                student.enroll_year = int(enroll_year_raw)
         else:
             flash("入学年份需为数字，已保持原值。", "warning")
     birth_date_raw = form.get("birth_date", "").strip()
@@ -274,6 +315,14 @@ def delete_student(sno: str) -> str:
     if student is None:
         flash("未找到指定学生。", "danger")
     else:
+        action = request.form.get("delete_action", "restrict")
+        has_enrollments = bool(student.enrollments)
+        if has_enrollments and action == "restrict":
+            flash("存在选课记录，已拒绝删除以避免破坏参照完整性。", "warning")
+            return redirect(url_for("main.manage_students"))
+        if has_enrollments and action == "set_null":
+            flash("选课记录无法将学号置空，请选择拒绝或级联删除。", "danger")
+            return redirect(url_for("main.manage_students"))
         db.session.delete(student)
         try:
             db.session.commit()
@@ -316,11 +365,29 @@ def manage_courses() -> str:
         cname = form.get("cname", "").strip()
         credits_raw = form.get("credits", "").strip()
         hours_raw = form.get("hours", "").strip()
-        dno = form.get("dno") or None
-        prereq_cno = form.get("prereq_cno") or None
+        dno_raw = form.get("dno")
+        if isinstance(dno_raw, str):
+            dno = dno_raw.strip() or None
+        else:
+            dno = None
+        prereq_raw = form.get("prereq_cno")
+        if isinstance(prereq_raw, str):
+            prereq_cno = prereq_raw.strip() or None
+        else:
+            prereq_cno = None
         is_active_value = form.get("is_active", "true").lower()
 
-        if not (cno and cname and credits_raw.isdigit() and hours_raw.isdigit()):
+        existing_course = db.session.get(Course, cno) if cno else None
+
+        if not cno:
+            flash(ENTITY_PK_EMPTY_MSG, "danger")
+        elif existing_course is not None:
+            flash(ENTITY_PK_DUP_MSG, "danger")
+        elif dno and db.session.get(Department, dno) is None:
+            flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
+        elif prereq_cno and db.session.get(Course, prereq_cno) is None:
+            flash(REFERENTIAL_COURSE_MSG, "danger")
+        elif not (cno and cname and credits_raw.isdigit() and hours_raw.isdigit()):
             flash("请完整填写课程号、名称、学分和学时。", "danger")
         elif prereq_cno and prereq_cno == cno:
             flash("先修课不能是课程自身。", "danger")
@@ -346,7 +413,8 @@ def manage_courses() -> str:
                 db.session.rollback()
                 flash(f"创建课程失败：{exc.orig}", "danger")
 
-    search = request.args.get("q", "").strip()
+    course_code_search = request.args.get("cno", "").strip()
+    course_name_search = request.args.get("name", "").strip()
     dept_filter = request.args.get("department", "").strip()
 
     course_query = (
@@ -354,11 +422,10 @@ def manage_courses() -> str:
         .options(selectinload(Course.department), selectinload(Course.prerequisite))
         .order_by(Course.cno)
     )
-    if search:
-        pattern = f"%{search}%"
-        course_query = course_query.where(
-            or_(Course.cname.ilike(pattern), Course.cno.ilike(pattern))
-        )
+    if course_code_search:
+        course_query = course_query.where(Course.cno.ilike(f"%{course_code_search}%"))
+    if course_name_search:
+        course_query = course_query.where(Course.cname.ilike(f"%{course_name_search}%"))
     if dept_filter:
         course_query = course_query.where(Course.dno == dept_filter)
 
@@ -370,7 +437,8 @@ def manage_courses() -> str:
         courses=courses,
         departments=departments,
         all_courses=all_courses,
-        search=search,
+        course_code_search=course_code_search,
+        course_name_search=course_name_search,
         dept_filter=dept_filter,
         course_total=course_total,
         active_course_count=active_course_count,
@@ -403,10 +471,19 @@ def update_course(cno: str) -> str:
             course.hours = int(hours_raw)
         else:
             flash("学时需为整数，已保留原值。", "warning")
-    course.dno = form.get("dno") or None
+    new_dno = form.get("dno") or None
+    if new_dno:
+        if db.session.get(Department, new_dno):
+            course.dno = new_dno
+        else:
+            flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
+    else:
+        course.dno = None
     prereq_cno = form.get("prereq_cno") or None
     if prereq_cno and prereq_cno == cno:
         flash("先修课不能为自身，已忽略此次修改。", "warning")
+    elif prereq_cno and db.session.get(Course, prereq_cno) is None:
+        flash(REFERENTIAL_COURSE_MSG, "danger")
     else:
         course.prereq_cno = prereq_cno or None
     is_active_value = form.get("is_active", "true").lower()
@@ -430,6 +507,35 @@ def delete_course(cno: str) -> str:
     if course is None:
         flash("未找到课程。", "danger")
     else:
+        action = request.form.get("delete_action", "restrict")
+        referencing_courses = (
+            db.session.execute(select(Course).where(Course.prereq_cno == cno))
+            .scalars()
+            .all()
+        )
+        has_prereq_refs = bool(referencing_courses)
+        has_enrollments = bool(course.enrollments)
+        has_teachings = bool(course.teachings)
+        has_refs = has_prereq_refs or has_enrollments or has_teachings
+
+        if has_refs and action == "restrict":
+            flash("此课程仍作为先修课或存在选课/授课记录，已拒绝删除。", "warning")
+            return redirect(url_for("main.manage_courses"))
+
+        if action == "set_null":
+            if has_enrollments or has_teachings:
+                flash("课程存在选课或授课安排，无法通过置空解除引用。", "danger")
+                return redirect(url_for("main.manage_courses"))
+            for ref_course in referencing_courses:
+                ref_course.prereq_cno = None
+        elif action == "cascade":
+            for enrollment in list(course.enrollments):
+                db.session.delete(enrollment)
+            for teaching in list(course.teachings):
+                db.session.delete(teaching)
+            for ref_course in referencing_courses:
+                ref_course.prereq_cno = None
+
         db.session.delete(course)
         try:
             db.session.commit()
@@ -468,8 +574,21 @@ def manage_enrollments() -> str:
         term = form.get("term", "").strip()
         grade_raw = form.get("grade", "").strip()
         status = form.get("status", ENROLLMENT_STATUSES[0])
+        existing_enrollment = (
+            db.session.execute(
+                select(Enrollment).where(Enrollment.sno == sno, Enrollment.cno == cno)
+            ).scalar_one_or_none()
+            if sno and cno
+            else None
+        )
 
-        if not (sno and cno and year_taken_raw.isdigit() and term):
+        if not sno or not cno:
+            flash(ENTITY_PK_EMPTY_MSG, "danger")
+        elif existing_enrollment is not None:
+            flash(ENTITY_PK_DUP_MSG, "danger")
+        elif db.session.get(Student, sno) is None or db.session.get(Course, cno) is None:
+            flash(REFERENTIAL_STUDENT_COURSE_MSG, "danger")
+        elif not (year_taken_raw.isdigit() and term):
             flash("请完整填写学生、课程、学年与学期。", "danger")
         elif term not in valid_term_codes:
             flash("学期取值非法。", "danger")
@@ -629,8 +748,13 @@ def manage_classrooms() -> str:
         building = form.get("building", "").strip()
         room_no = form.get("room_no", "").strip()
         capacity_raw = form.get("capacity", "").strip()
+        existing_classroom = db.session.get(Classroom, room_id) if room_id else None
 
-        if not (room_id and building and room_no and capacity_raw.isdigit()):
+        if not room_id:
+            flash(ENTITY_PK_EMPTY_MSG, "danger")
+        elif existing_classroom is not None:
+            flash(ENTITY_PK_DUP_MSG, "danger")
+        elif not (building and room_no and capacity_raw.isdigit()):
             flash("请完整填写教室编号、楼栋、房间号和容量。", "danger")
         else:
             classroom = Classroom(
@@ -704,6 +828,17 @@ def delete_classroom(room_id: str) -> str:
     if classroom is None:
         flash("未找到教室。", "danger")
     else:
+        action = request.form.get("delete_action", "restrict")
+        has_teachings = bool(classroom.teachings)
+        if has_teachings and action == "restrict":
+            flash("该教室仍有关联授课安排，已拒绝删除。", "warning")
+            return redirect(url_for("main.manage_classrooms"))
+        if has_teachings and action == "set_null":
+            for teaching in classroom.teachings:
+                teaching.room_id = None
+        if action == "cascade":
+            for teaching in list(classroom.teachings):
+                db.session.delete(teaching)
         db.session.delete(classroom)
         try:
             db.session.commit()
@@ -738,8 +873,15 @@ def manage_teachers() -> str:
         dno = form.get("dno") or None
         email = form.get("email") or None
         phone = form.get("phone") or None
+        existing_teacher = db.session.get(Teacher, tno) if tno else None
 
-        if not (tno and tname and title):
+        if not tno:
+            flash(ENTITY_PK_EMPTY_MSG, "danger")
+        elif existing_teacher is not None:
+            flash(ENTITY_PK_DUP_MSG, "danger")
+        elif dno and db.session.get(Department, dno) is None:
+            flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
+        elif not (tname and title):
             flash("请完整填写工号、姓名和职称。", "danger")
         elif title not in TEACHER_TITLES:
             flash("职称取值非法。", "danger")
@@ -797,7 +939,14 @@ def update_teacher(tno: str) -> str:
     title = form.get("title")
     if title in TEACHER_TITLES:
         teacher.title = title
-    teacher.dno = form.get("dno") or None
+    new_dno = form.get("dno") or None
+    if new_dno:
+        if db.session.get(Department, new_dno):
+            teacher.dno = new_dno
+        else:
+            flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
+    else:
+        teacher.dno = None
     teacher.email = form.get("email") or None
     teacher.phone = form.get("phone") or None
 
@@ -819,6 +968,17 @@ def delete_teacher(tno: str) -> str:
     if teacher is None:
         flash("未找到教师。", "danger")
     else:
+        action = request.form.get("delete_action", "restrict")
+        has_teachings = bool(teacher.teachings)
+        if has_teachings and action == "restrict":
+            flash("该教师仍有关联授课安排，已拒绝删除。", "warning")
+            return redirect(url_for("main.manage_teachers"))
+        if has_teachings and action == "set_null":
+            flash("授课安排无法将教师置空，请选择拒绝或级联删除。", "danger")
+            return redirect(url_for("main.manage_teachers"))
+        if action == "cascade":
+            for teaching in list(teacher.teachings):
+                db.session.delete(teaching)
         db.session.delete(teacher)
         try:
             db.session.commit()
@@ -866,6 +1026,12 @@ def manage_teachings() -> str:
             flash("请完整填写课程、教师、开课年份和学期。", "danger")
         elif term not in term_lookup:
             flash("学期取值非法。", "danger")
+        elif db.session.get(Course, cno) is None:
+            flash(REFERENTIAL_COURSE_MSG, "danger")
+        elif db.session.get(Teacher, tno) is None:
+            flash(REFERENTIAL_TEACHER_MSG, "danger")
+        elif room_id and db.session.get(Classroom, room_id) is None:
+            flash(REFERENTIAL_CLASSROOM_MSG, "danger")
         else:
             if capacity_raw and not capacity_raw.isdigit():
                 flash("容量需为整数，已使用默认值 120。", "warning")
@@ -941,10 +1107,16 @@ def update_teaching(teach_id: int) -> str:
     form = request.form
     cno = form.get("cno")
     if cno:
-        teaching.cno = cno
+        if db.session.get(Course, cno):
+            teaching.cno = cno
+        else:
+            flash(REFERENTIAL_COURSE_MSG, "danger")
     tno = form.get("tno")
     if tno:
-        teaching.tno = tno
+        if db.session.get(Teacher, tno):
+            teaching.tno = tno
+        else:
+            flash(REFERENTIAL_TEACHER_MSG, "danger")
     year_offered_raw = form.get("year_offered", "").strip()
     if year_offered_raw:
         if year_offered_raw.isdigit():
@@ -955,7 +1127,13 @@ def update_teaching(teach_id: int) -> str:
     if term and db.session.get(TermDict, term):
         teaching.term = term
     room_id = form.get("room_id")
-    teaching.room_id = room_id or None
+    if room_id:
+        if db.session.get(Classroom, room_id):
+            teaching.room_id = room_id
+        else:
+            flash(REFERENTIAL_CLASSROOM_MSG, "danger")
+    else:
+        teaching.room_id = None
     capacity_raw = form.get("capacity", "").strip()
     if capacity_raw:
         if capacity_raw.isdigit():

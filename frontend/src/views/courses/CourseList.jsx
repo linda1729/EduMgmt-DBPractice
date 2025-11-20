@@ -44,11 +44,13 @@ const defaultCreateState = {
   is_active: true,
 }
 
+const defaultFilterState = { courseId: '', courseName: '', department: '', includeInactive: false }
+
 const CourseList = () => {
   const [meta, setMeta] = useState(null)
   const [metaError, setMetaError] = useState('')
-  const [formState, setFormState] = useState({ q: '', department: '', includeInactive: false })
-  const [filters, setFilters] = useState(formState)
+  const [formState, setFormState] = useState(() => ({ ...defaultFilterState }))
+  const [filters, setFilters] = useState(() => ({ ...defaultFilterState }))
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(pageSizeOptions[0])
   const [loading, setLoading] = useState(false)
@@ -82,7 +84,8 @@ const CourseList = () => {
           page,
           perPage,
           department: filters.department || undefined,
-          keyword: filters.q || undefined,
+          courseId: filters.courseId || undefined,
+          name: filters.courseName || undefined,
           includeInactive: Boolean(filters.includeInactive),
         })
         setItems(response.items || [])
@@ -128,7 +131,7 @@ const CourseList = () => {
   }
 
   const resetFilters = () => {
-    const next = { q: '', department: '', includeInactive: false }
+    const next = { ...defaultFilterState }
     setFormState(next)
     setFilters(next)
     setPage(1)
@@ -197,7 +200,9 @@ const CourseList = () => {
   }
 
   const handleDelete = async (cno) => {
-    if (!window.confirm(`确认删除课程 ${cno} ？`)) {
+    const confirmMessage =
+      '根据参照完整性，删除课程会影响选课记录、授课安排以及其它课程的先修关系。若继续执行，相关数据将按设置策略处理。是否确认？'
+    if (!window.confirm(confirmMessage)) {
       return
     }
     try {
@@ -344,7 +349,7 @@ const CourseList = () => {
         <CCardHeader className="d-flex flex-wrap justify-content-between align-items-end gap-3">
           <div>
             <h5 className="mb-0">课程列表</h5>
-            <div className="text-body-secondary small">支持关键字、院系与状态筛选</div>
+            <div className="text-body-secondary small">支持课程号、名称、院系与状态组合筛选</div>
           </div>
           <CButton color="secondary" variant="outline" onClick={resetFilters} disabled={loading}>
             重置
@@ -353,8 +358,24 @@ const CourseList = () => {
         <CCardBody>
           <CForm className="row g-3 mb-4" onSubmit={applyFilters}>
             <CCol md={4}>
-              <CFormLabel htmlFor="q">关键字（课程号/名称）</CFormLabel>
-              <CFormInput id="q" name="q" value={formState.q} onChange={handleFilterChange} />
+              <CFormLabel htmlFor="filter-course-id">课程号</CFormLabel>
+              <CFormInput
+                id="filter-course-id"
+                name="courseId"
+                value={formState.courseId}
+                onChange={handleFilterChange}
+                placeholder="例如：CS001"
+              />
+            </CCol>
+            <CCol md={4}>
+              <CFormLabel htmlFor="filter-course-name">课程名称</CFormLabel>
+              <CFormInput
+                id="filter-course-name"
+                name="courseName"
+                value={formState.courseName}
+                onChange={handleFilterChange}
+                placeholder="例如：数据库原理"
+              />
             </CCol>
             <CCol md={3}>
               <CFormLabel htmlFor="department">院系</CFormLabel>

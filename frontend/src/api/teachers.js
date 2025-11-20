@@ -1,12 +1,24 @@
 import { request } from './client'
 
-export const listTeachers = ({ page = 1, perPage = 20, department, title, keyword } = {}) =>
+export const listTeachers = ({
+  page = 1,
+  perPage = 20,
+  department,
+  title,
+  name,
+  email,
+  phone,
+  keyword,
+} = {}) =>
   request('/api/v1/teachers/', {
     params: {
       page,
       per_page: perPage,
       department,
       title,
+      name,
+      email,
+      phone,
       q: keyword,
     },
   })

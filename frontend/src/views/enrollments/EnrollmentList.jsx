@@ -77,8 +77,11 @@ const EnrollmentList = () => {
         const response = await listEnrollments({
           page,
           perPage,
-          ...filters,
+          student: filters.student || undefined,
+          course: filters.course || undefined,
+          status: filters.status || undefined,
           year: filters.year || undefined,
+          term: filters.term || undefined,
         })
         setItems(response.items || [])
         setTotal(response.total || 0)
@@ -351,7 +354,7 @@ const EnrollmentList = () => {
         <CCardHeader className="d-flex flex-wrap justify-content-between align-items-end gap-3">
           <div>
             <h5 className="mb-0">选课列表</h5>
-            <div className="text-body-secondary small">最多展示 300 条选课记录，可按学生、课程、状态筛选</div>
+            <div className="text-body-secondary small">最多展示 300 条选课记录，可按学生、课程、状态、学期等组合筛选</div>
           </div>
           <CButton color="secondary" variant="outline" onClick={resetFilters} disabled={loading}>
             重置
@@ -360,26 +363,40 @@ const EnrollmentList = () => {
         <CCardBody>
           <CForm className="row g-3 mb-4" onSubmit={applyFilters}>
             <CCol md={3}>
-              <CFormLabel htmlFor="student">学生</CFormLabel>
-              <CFormSelect id="student" name="student" value={formState.student} onChange={handleFilterChange}>
-                <option value="">全部</option>
+              <CFormLabel htmlFor="student">学生学号</CFormLabel>
+              <CFormInput
+                id="student"
+                name="student"
+                value={formState.student}
+                onChange={handleFilterChange}
+                placeholder="输入学号，例如：20230001"
+                list="student-options"
+              />
+              <datalist id="student-options">
                 {(meta?.students || []).map((student) => (
                   <option key={student.sno} value={student.sno}>
-                    {student.sno} · {student.sname}
+                    {student.sname}
                   </option>
                 ))}
-              </CFormSelect>
+              </datalist>
             </CCol>
             <CCol md={3}>
-              <CFormLabel htmlFor="course">课程</CFormLabel>
-              <CFormSelect id="course" name="course" value={formState.course} onChange={handleFilterChange}>
-                <option value="">全部</option>
+              <CFormLabel htmlFor="course">课程编号</CFormLabel>
+              <CFormInput
+                id="course"
+                name="course"
+                value={formState.course}
+                onChange={handleFilterChange}
+                placeholder="输入课程号，例如：CS001"
+                list="course-options"
+              />
+              <datalist id="course-options">
                 {(meta?.courses || []).map((course) => (
                   <option key={course.cno} value={course.cno}>
-                    {course.cno} · {course.cname}
+                    {course.cname}
                   </option>
                 ))}
-              </CFormSelect>
+              </datalist>
             </CCol>
             <CCol md={2}>
               <CFormLabel htmlFor="status">状态</CFormLabel>

@@ -50,7 +50,12 @@
 | 资源 | 说明 |
 | --- | --- |
 | `app/static/css/main.css` | 模板的全局样式。 |
+| 导航 Logo (Jinja 模板) | `app/static/img/logo.svg`（若无可自行创建该目录） |
 | `app/static/` 下的自定义图片 | 可放置旧版 Logo、背景等，并在模板中通过 `url_for('static', filename='images/xxx.png')` 引用。 |
+
+**Flask Logo 替换步骤：**
+1. 在 `app/static` 下新建 `img/` 目录（若尚未存在），放置命名为 `logo.svg` 的自定义图标。
+2. `app/templates/base.html` 会在品牌区域自动引用该文件，确保 SVG 大小在 24~32px 之间即可避免布局错位。
 
 与 React 前端无交集时，可忽略该部分。
 

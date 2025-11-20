@@ -1,12 +1,20 @@
 import { request } from './client'
 
-export const listCourses = ({ page = 1, perPage = 20, department, keyword, includeInactive = false } = {}) => {
+export const listCourses = ({
+  page = 1,
+  perPage = 20,
+  department,
+  courseId,
+  name,
+  includeInactive = false,
+} = {}) => {
   return request('/api/v1/courses/', {
     params: {
       page,
       per_page: perPage,
       department,
-      q: keyword,
+      cno: courseId,
+      name,
       include_inactive: includeInactive ? 'true' : undefined,
     },
   })

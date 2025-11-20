@@ -83,9 +83,16 @@
     </div>
     <div class="card-body">
       <div class="row g-3 mb-3 justify-content-center">
-        <div class="col-12 col-lg-6">
-          <label class="form-label" for="classroom-search">快速模糊搜索</label>
-          <input class="form-control" id="classroom-search" placeholder="输入楼栋、房间号或容量过滤表格">
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="classroom-room-id-filter">按教室编号</label>
+          <input class="form-control" id="classroom-room-id-filter" placeholder="例如：A1-101">
+        </div>
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="classroom-room-no-filter">按房间号</label>
+          <input class="form-control" id="classroom-room-no-filter" placeholder="例如：101">
+        </div>
+        <div class="col-sm-6 col-lg-4 align-self-end">
+          <p class="text-muted small mb-0">支持按楼栋表单 + 教室编号/房间号组合过滤。</p>
         </div>
       </div>
       {% if classrooms %}
@@ -102,7 +109,7 @@
             </thead>
             <tbody>
               {% for classroom in classrooms %}
-                <tr>
+                <tr data-room-id="{{ classroom.room_id|lower }}" data-room-no="{{ classroom.room_no|lower }}" data-building="{{ classroom.building|lower }}">
                   <td class="fw-semibold">{{ classroom.room_id }}</td>
                   <td>
                     <input class="form-control form-control-sm" form="update-room-{{ classroom.room_id }}" name="building" value="{{ classroom.building }}" maxlength="50">
@@ -118,7 +125,15 @@
                       <form id="update-room-{{ classroom.room_id }}" method="post" action="{{ url_for('main.update_classroom', room_id=classroom.room_id) }}"></form>
                       <button class="btn btn-sm btn-outline-primary" form="update-room-{{ classroom.room_id }}" type="submit">保存</button>
                       <form method="post" action="{{ url_for('main.delete_classroom', room_id=classroom.room_id) }}">
-                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('确认删除教室 {{ classroom.room_id }} 吗？')">删除</button>
+                        <input type="hidden" name="delete_action" value="restrict">
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          data-delete-intro="根据参照完整性，授课安排表中的教室字段会被置空，是否确认执行？"
+                          onclick="return handleDeleteAction(this, '教室', true)"
+                        >
+                          删除
+                        </button>
                       </form>
                     </div>
                   </td>
@@ -151,19 +166,25 @@
         const h = parseFloat(getComputedStyle(canvas).height||'0');
         if (!h || h < 10) canvas.style.minHeight = (px||280)+'px';
       }
-      function setupTableFilter(inputId, tableId){
-        const input=document.getElementById(inputId);
+      function setupClassroomFilters(tableId){
         const table=document.getElementById(tableId);
-        if(!input||!table) return;
+        const inputRoomId=document.getElementById('classroom-room-id-filter');
+        const inputRoomNo=document.getElementById('classroom-room-no-filter');
+        if(!table||!inputRoomId||!inputRoomNo) return;
         const rows=Array.from(table.querySelectorAll('tbody tr'));
-        input.addEventListener('input',()=>{
-          const kws=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-          rows.forEach(r=>{
-            if(!kws.length){ r.style.display=''; return; }
-            const txt=r.innerText.toLowerCase();
-            r.style.display = kws.every(k=>txt.includes(k)) ? '' : 'none';
+        const applyFilter=()=>{
+          const roomIdValue=inputRoomId.value.trim().toLowerCase();
+          const roomNoValue=inputRoomNo.value.trim().toLowerCase();
+          rows.forEach(row=>{
+            const rowId=(row.dataset.roomId||'').toLowerCase();
+            const rowNo=(row.dataset.roomNo||'').toLowerCase();
+            const matchId = !roomIdValue || rowId.includes(roomIdValue);
+            const matchNo = !roomNoValue || rowNo.includes(roomNoValue);
+            row.style.display = matchId && matchNo ? '' : 'none';
           });
-        });
+        };
+        inputRoomId.addEventListener('input', applyFilter);
+        inputRoomNo.addEventListener('input', applyFilter);
       }
 
       ready(function(){
@@ -191,7 +212,7 @@
             ctx.insertAdjacentHTML('afterend','<p class="text-muted small mb-0">暂无楼栋分布数据。</p>');
           }
 
-          setupTableFilter('classroom-search','classrooms-table');
+          setupClassroomFilters('classrooms-table');
         });
       });
     })();

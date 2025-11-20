@@ -356,26 +356,40 @@ const TeachingList = () => {
         <CCardBody>
           <CForm className="row g-3 mb-4" onSubmit={applyFilters}>
             <CCol md={3}>
-              <CFormLabel htmlFor="course">课程</CFormLabel>
-              <CFormSelect id="course" name="course" value={formState.course} onChange={handleFilterChange}>
-                <option value="">全部课程</option>
+              <CFormLabel htmlFor="course">课程编号</CFormLabel>
+              <CFormInput
+                id="course"
+                name="course"
+                value={formState.course}
+                onChange={handleFilterChange}
+                placeholder="输入课程号"
+                list="teaching-course-options"
+              />
+              <datalist id="teaching-course-options">
                 {(meta?.courses || []).map((course) => (
                   <option key={course.cno} value={course.cno}>
-                    {course.cno} · {course.cname}
+                    {course.cname}
                   </option>
                 ))}
-              </CFormSelect>
+              </datalist>
             </CCol>
             <CCol md={3}>
-              <CFormLabel htmlFor="teacher">教师</CFormLabel>
-              <CFormSelect id="teacher" name="teacher" value={formState.teacher} onChange={handleFilterChange}>
-                <option value="">全部教师</option>
+              <CFormLabel htmlFor="teacher">教师工号</CFormLabel>
+              <CFormInput
+                id="teacher"
+                name="teacher"
+                value={formState.teacher}
+                onChange={handleFilterChange}
+                placeholder="输入教师工号"
+                list="teaching-teacher-options"
+              />
+              <datalist id="teaching-teacher-options">
                 {(meta?.teachers || []).map((teacher) => (
                   <option key={teacher.tno} value={teacher.tno}>
-                    {teacher.tno} · {teacher.tname}
+                    {teacher.tname}
                   </option>
                 ))}
-              </CFormSelect>
+              </datalist>
             </CCol>
             <CCol md={2}>
               <CFormLabel htmlFor="term">学期</CFormLabel>

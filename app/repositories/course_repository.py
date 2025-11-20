@@ -16,22 +16,51 @@ class CourseRepository:
     """Encapsulate common Course queries."""
 
     @staticmethod
-    def _apply_filters(query: Query, *, department: Optional[str], active_only: bool, keyword: Optional[str]) -> Query:
-        # 功能：根据院系、上下架状态与关键字构建课程筛选条件。
+    def _apply_filters(
+        query: Query,
+        *,
+        department: Optional[str],
+        active_only: bool,
+        course_id: Optional[str],
+        name: Optional[str],
+        keyword: Optional[str],
+    ) -> Query:
+        # 功能：根据院系、上下架状态、课程号、名称与关键字构建课程筛选条件。
         if department:
             query = query.filter(Course.dno == department)
         if active_only:
             query = query.filter(Course.is_active.is_(True))
+        if course_id:
+            query = query.filter(Course.cno.ilike(f"%{course_id}%"))
+        if name:
+            query = query.filter(Course.cname.ilike(f"%{name}%"))
         if keyword:
             like = f"%{keyword}%"
             query = query.filter(or_(Course.cname.ilike(like), Course.cno.ilike(like)))
         return query
 
     @classmethod
-    def list(cls, *, department: Optional[str] = None, active_only: bool = True, keyword: Optional[str] = None, page: int = 1, per_page: int = 20) -> Tuple[List[Course], int]:
+    def list(
+        cls,
+        *,
+        department: Optional[str] = None,
+        active_only: bool = True,
+        course_id: Optional[str] = None,
+        name: Optional[str] = None,
+        keyword: Optional[str] = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Tuple[List[Course], int]:
         # 功能：分页查询课程并返回总记录数。
         query = Course.query
-        query = cls._apply_filters(query, department=department, active_only=active_only, keyword=keyword)
+        query = cls._apply_filters(
+            query,
+            department=department,
+            active_only=active_only,
+            course_id=course_id,
+            name=name,
+            keyword=keyword,
+        )
         total = query.count()
         items = (
             query.order_by(Course.cno)

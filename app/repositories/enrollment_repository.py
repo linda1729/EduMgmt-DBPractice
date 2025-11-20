@@ -5,20 +5,29 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query
 
 from ..extensions import db
-from ..models import Course, Enrollment
+from ..models import Course, Enrollment, Student
 
 
 class EnrollmentRepository:
     """Encapsulate enrollment CRUD and helper queries."""
 
     @staticmethod
-    def _apply_filters(query: Query, *, student_id: Optional[str], course_id: Optional[str], status: Optional[str], year: Optional[int], term: Optional[str]) -> Query:
-        # 功能：增加学生、课程、状态、学年与学期的动态过滤条件。
+    def _apply_filters(
+        query: Query,
+        *,
+        student_id: Optional[str],
+        course_id: Optional[str],
+        status: Optional[str],
+        year: Optional[int],
+        term: Optional[str],
+        keyword: Optional[str],
+    ) -> Query:
+        # 功能：增加学生、课程、状态、学年、学期与模糊关键字的动态过滤条件。
         if student_id:
             query = query.filter(Enrollment.sno == student_id)
         if course_id:
@@ -29,13 +38,49 @@ class EnrollmentRepository:
             query = query.filter(Enrollment.year_taken == year)
         if term:
             query = query.filter(Enrollment.term == term)
+        if keyword:
+            normalized = keyword.replace("，", " ").replace(",", " ")
+            tokens = [token.strip() for token in normalized.split() if token.strip()]
+            if tokens:
+                # 仅在需要时联结学生与课程，支持组合关键词模糊检索。
+                query = query.join(Enrollment.student).join(Enrollment.course)
+                for token in tokens:
+                    like = f"%{token}%"
+                    query = query.filter(
+                        or_(
+                            Student.sname.ilike(like),
+                            Student.sno.ilike(like),
+                            Course.cname.ilike(like),
+                            Course.cno.ilike(like),
+                            Enrollment.status.ilike(like),
+                        )
+                    )
         return query
 
     @classmethod
-    def list(cls, *, student_id: Optional[str] = None, course_id: Optional[str] = None, status: Optional[str] = None, year: Optional[int] = None, term: Optional[str] = None, page: int = 1, per_page: int = 20) -> Tuple[List[Enrollment], int]:
+    def list(
+        cls,
+        *,
+        student_id: Optional[str] = None,
+        course_id: Optional[str] = None,
+        status: Optional[str] = None,
+        year: Optional[int] = None,
+        term: Optional[str] = None,
+        keyword: Optional[str] = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Tuple[List[Enrollment], int]:
         # 功能：分页查询选课记录并按时间排序。
         query = Enrollment.query
-        query = cls._apply_filters(query, student_id=student_id, course_id=course_id, status=status, year=year, term=term)
+        query = cls._apply_filters(
+            query,
+            student_id=student_id,
+            course_id=course_id,
+            status=status,
+            year=year,
+            term=term,
+            keyword=keyword,
+        )
         total = query.count()
         items = (
             query.order_by(Enrollment.enroll_date.desc())

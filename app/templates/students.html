@@ -110,8 +110,12 @@
     <div class="card-body">
       <form class="row g-2 align-items-end mb-4 text-center justify-content-center" method="get" action="{{ url_for('main.manage_students') }}">
         <div class="col-sm-6 col-lg-4">
-          <label class="form-label" for="search">关键词</label>
-          <input class="form-control" id="search" name="q" placeholder="按学号或姓名检索" value="{{ search }}">
+          <label class="form-label" for="filter-sno">学号</label>
+          <input class="form-control" id="filter-sno" name="sno" placeholder="例如：20231234" value="{{ sno_search }}">
+        </div>
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label" for="filter-sname">姓名</label>
+          <input class="form-control" id="filter-sname" name="name" placeholder="例如：张三" value="{{ sname_search }}">
         </div>
         <div class="col-sm-6 col-lg-4">
           <label class="form-label" for="dept-filter">院系筛选</label>
@@ -181,7 +185,15 @@
                       <form id="update-{{ student.sno }}" method="post" action="{{ url_for('main.update_student', sno=student.sno) }}"></form>
                       <button class="btn btn-sm btn-outline-primary" form="update-{{ student.sno }}" type="submit">保存</button>
                       <form method="post" action="{{ url_for('main.delete_student', sno=student.sno) }}">
-                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('确认删除 {{ student.sname }} 吗？')">删除</button>
+                        <input type="hidden" name="delete_action" value="restrict">
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          data-delete-intro="根据参照完整性，删除学生将同步删除其全部选课记录，是否继续？"
+                          onclick="return handleDeleteAction(this, '学生', false)"
+                        >
+                          删除
+                        </button>
                       </form>
                     </div>
                   </td>

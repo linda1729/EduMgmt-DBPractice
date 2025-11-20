@@ -20,11 +20,17 @@ class ClassroomRepository:
         query: Query,
         *,
         building: Optional[str],
+        room_id: Optional[str],
+        room_no: Optional[str],
         keyword: Optional[str],
     ) -> Query:
-        # 功能：根据楼栋或模糊关键字筛选教室。
+        # 功能：根据楼栋、教室编号、房间号或模糊关键字筛选教室。
         if building:
             query = query.filter(Classroom.building == building)
+        if room_id:
+            query = query.filter(Classroom.room_id.ilike(f"%{room_id}%"))
+        if room_no:
+            query = query.filter(Classroom.room_no.ilike(f"%{room_no}%"))
         if keyword:
             like = f"%{keyword}%"
             query = query.filter(
@@ -37,13 +43,21 @@ class ClassroomRepository:
         cls,
         *,
         building: Optional[str] = None,
+        room_id: Optional[str] = None,
+        room_no: Optional[str] = None,
         keyword: Optional[str] = None,
         page: int = 1,
         per_page: int = 20,
     ) -> Tuple[List[Classroom], int]:
         # 功能：分页查询教室列表。
         query = Classroom.query
-        query = cls._apply_filters(query, building=building, keyword=keyword)
+        query = cls._apply_filters(
+            query,
+            building=building,
+            room_id=room_id,
+            room_no=room_no,
+            keyword=keyword,
+        )
         total = query.count()
         items = (
             query.order_by(Classroom.building, Classroom.room_no)

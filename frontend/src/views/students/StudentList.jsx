@@ -50,11 +50,13 @@ const defaultCreateForm = {
   phone: '',
 }
 
+const defaultFilterState = { studentId: '', studentName: '', department: '', enrollYear: '' }
+
 const StudentList = () => {
   const [meta, setMeta] = useState(null)
   const [metaError, setMetaError] = useState('')
-  const [formState, setFormState] = useState({ q: '', department: '', enrollYear: '' })
-  const [filters, setFilters] = useState(formState)
+  const [formState, setFormState] = useState(() => ({ ...defaultFilterState }))
+  const [filters, setFilters] = useState(() => ({ ...defaultFilterState }))
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(pageSizeOptions[0])
   const [loading, setLoading] = useState(false)
@@ -89,7 +91,8 @@ const StudentList = () => {
           perPage,
           department: filters.department || undefined,
           enrollYear: filters.enrollYear || undefined,
-          keyword: filters.q || undefined,
+          studentId: filters.studentId || undefined,
+          name: filters.studentName || undefined,
         })
         setItems(response.items || [])
         setTotal(response.total || 0)
@@ -136,7 +139,7 @@ const StudentList = () => {
   }
 
   const resetFilters = () => {
-    const nextState = { q: '', department: '', enrollYear: '' }
+    const nextState = { ...defaultFilterState }
     setFormState(nextState)
     setFilters(nextState)
     setPage(1)
@@ -216,7 +219,9 @@ const StudentList = () => {
   }
 
   const handleDelete = async (sno) => {
-    if (!window.confirm('确定要删除该学生吗？')) {
+    const confirmMessage =
+      '根据参照完整性，删除学生将同步删除其全部选课记录。是否继续执行？'
+    if (!window.confirm(confirmMessage)) {
       return
     }
     try {
@@ -352,7 +357,7 @@ const StudentList = () => {
         <CCardHeader className="d-flex flex-wrap justify-content-between align-items-end gap-3">
           <div>
             <h5 className="mb-0">学生列表</h5>
-            <div className="text-body-secondary small">最多展示 200 名学生，可按关键字与院系过滤</div>
+            <div className="text-body-secondary small">最多展示 200 名学生，可按学号、姓名、院系组合过滤</div>
           </div>
           <div className="d-flex gap-2">
             <CButton color="secondary" variant="outline" onClick={resetFilters} disabled={loading}>
@@ -363,8 +368,24 @@ const StudentList = () => {
         <CCardBody>
           <CForm className="row g-3 mb-4" onSubmit={applyFilters}>
             <CCol md={4}>
-              <CFormLabel htmlFor="q">关键字（姓名/学号）</CFormLabel>
-              <CFormInput id="q" name="q" value={formState.q} onChange={handleFilterChange} placeholder="例如：20231234" />
+              <CFormLabel htmlFor="filter-student-id">学号</CFormLabel>
+              <CFormInput
+                id="filter-student-id"
+                name="studentId"
+                value={formState.studentId}
+                onChange={handleFilterChange}
+                placeholder="例如：20231234"
+              />
+            </CCol>
+            <CCol md={4}>
+              <CFormLabel htmlFor="filter-student-name">姓名</CFormLabel>
+              <CFormInput
+                id="filter-student-name"
+                name="studentName"
+                value={formState.studentName}
+                onChange={handleFilterChange}
+                placeholder="例如：张三"
+              />
             </CCol>
             <CCol md={4}>
               <CFormLabel htmlFor="department">院系</CFormLabel>

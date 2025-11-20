@@ -35,6 +35,13 @@ const statusMeta = {
   dropped: { color: 'danger', label: '退课' },
 }
 
+const heatmapColumns = [
+  { key: 'create', label: '增' },
+  { key: 'read', label: '查' },
+  { key: 'update', label: '改' },
+  { key: 'delete', label: '删' },
+]
+
 const Dashboard = () => {
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -110,6 +117,33 @@ const Dashboard = () => {
     }))
   }, [summary])
 
+  const crudHeatmap = summary?.crud_heatmap ?? []
+  const heatmapMax = useMemo(() => {
+    if (crudHeatmap.length === 0) return 0
+    return crudHeatmap.reduce((max, row) => {
+      const rowMax = Math.max(
+        ...heatmapColumns.map((col) => Number(row.metrics?.[col.key] ?? 0)),
+      )
+      return Math.max(max, rowMax)
+    }, 0)
+  }, [crudHeatmap])
+
+  const renderHeatmapCellStyle = (value) => {
+    if (!heatmapMax) {
+      return { backgroundColor: 'rgba(148, 163, 184, 0.15)' }
+    }
+    const intensity = value / heatmapMax
+    const lightness = 88 - intensity * 45
+    const alpha = 0.25 + intensity * 0.55
+    const bg = `hsla(${200 - intensity * 60}, 80%, ${lightness}%, ${alpha})`
+    const textColor = intensity > 0.55 ? '#fff' : '#0f172a'
+    return {
+      backgroundColor: bg,
+      color: textColor,
+      fontWeight: intensity > 0.5 ? 600 : 500,
+    }
+  }
+
   const formatDate = (value) => {
     if (!value) return '-'
     try {
@@ -158,6 +192,63 @@ const Dashboard = () => {
             </CCard>
           </CCol>
         ))}
+      </CRow>
+
+      <CRow className="g-3 mb-4">
+        <CCol>
+          <CCard className="h-100">
+            <CCardHeader>
+              <strong>各表增删查改热力图</strong>
+              <div className="text-body-secondary small">
+                统计近 30 天内的增/查/改行为强度与依赖关系（删）
+              </div>
+            </CCardHeader>
+            <CCardBody>
+              {crudHeatmap.length === 0 ? (
+                <div className="text-body-secondary">暂无增删查改统计数据</div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-sm text-center align-middle">
+                    <thead>
+                      <tr>
+                        <th scope="col" className="text-start">
+                          数据表
+                        </th>
+                        {heatmapColumns.map((col) => (
+                          <th key={col.key} scope="col">
+                            {col.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {crudHeatmap.map((row) => (
+                        <tr key={row.table}>
+                          <th scope="row" className="text-start">
+                            {row.table}
+                          </th>
+                          {heatmapColumns.map((col) => {
+                            const value = Number(row.metrics?.[col.key] ?? 0)
+                            return (
+                              <td key={col.key}>
+                                <div
+                                  className="py-2 rounded-2"
+                                  style={renderHeatmapCellStyle(value)}
+                                >
+                                  {value.toLocaleString()}
+                                </div>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CCardBody>
+          </CCard>
+        </CCol>
       </CRow>
 
       <CRow className="g-3 mb-4">

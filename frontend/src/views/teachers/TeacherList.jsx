@@ -41,11 +41,13 @@ const defaultCreateState = {
   phone: '',
 }
 
+const defaultFilterState = { name: '', email: '', phone: '', department: '', title: '' }
+
 const TeacherList = () => {
   const [meta, setMeta] = useState(null)
   const [metaError, setMetaError] = useState('')
-  const [formState, setFormState] = useState({ q: '', department: '', title: '' })
-  const [filters, setFilters] = useState(formState)
+  const [formState, setFormState] = useState(() => ({ ...defaultFilterState }))
+  const [filters, setFilters] = useState(() => ({ ...defaultFilterState }))
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(pageSizeOptions[0])
   const [items, setItems] = useState([])
@@ -80,7 +82,9 @@ const TeacherList = () => {
           perPage,
           department: filters.department || undefined,
           title: filters.title || undefined,
-          keyword: filters.q || undefined,
+          name: filters.name || undefined,
+          email: filters.email || undefined,
+          phone: filters.phone || undefined,
         })
         setItems(response.items || [])
         setTotal(response.total || 0)
@@ -127,7 +131,7 @@ const TeacherList = () => {
   }
 
   const resetFilters = () => {
-    const next = { q: '', department: '', title: '' }
+    const next = { ...defaultFilterState }
     setFormState(next)
     setFilters(next)
     setPage(1)
@@ -193,7 +197,9 @@ const TeacherList = () => {
   }
 
   const handleDelete = async (tno) => {
-    if (!window.confirm(`确认删除教师 ${tno} 吗？`)) {
+    const confirmMessage =
+      '根据参照完整性，删除教师将影响授课安排（不可置空），需要连同相关授课记录一起删除。是否继续执行？'
+    if (!window.confirm(confirmMessage)) {
       return
     }
     try {
@@ -317,11 +323,38 @@ const TeacherList = () => {
         </CCardHeader>
         <CCardBody>
           <CForm className="row g-3 mb-4" onSubmit={applyFilters}>
-            <CCol md={4}>
-              <CFormLabel htmlFor="q">关键字</CFormLabel>
-              <CFormInput id="q" name="q" value={formState.q} onChange={handleFilterChange} placeholder="姓名/邮箱/电话" />
+            <CCol md={3}>
+              <CFormLabel htmlFor="filter-teacher-name">姓名</CFormLabel>
+              <CFormInput
+                id="filter-teacher-name"
+                name="name"
+                value={formState.name}
+                onChange={handleFilterChange}
+                placeholder="例如：李老师"
+              />
             </CCol>
-            <CCol md={4}>
+            <CCol md={3}>
+              <CFormLabel htmlFor="filter-teacher-email">邮箱</CFormLabel>
+              <CFormInput
+                id="filter-teacher-email"
+                name="email"
+                type="email"
+                value={formState.email}
+                onChange={handleFilterChange}
+                placeholder="例如：teacher@example.com"
+              />
+            </CCol>
+            <CCol md={3}>
+              <CFormLabel htmlFor="filter-teacher-phone">电话</CFormLabel>
+              <CFormInput
+                id="filter-teacher-phone"
+                name="phone"
+                value={formState.phone}
+                onChange={handleFilterChange}
+                placeholder="例如：138****8888"
+              />
+            </CCol>
+            <CCol md={3}>
               <CFormLabel htmlFor="department">院系</CFormLabel>
               <CFormSelect id="department" name="department" value={formState.department} onChange={handleFilterChange}>
                 <option value="">全部院系</option>
@@ -343,7 +376,7 @@ const TeacherList = () => {
                 ))}
               </CFormSelect>
             </CCol>
-            <CCol md={1} className="d-flex align-items-end">
+            <CCol md={2} className="d-flex align-items-end">
               <CButton type="submit" color="primary" className="w-100" disabled={loading}>
                 查询
               </CButton>

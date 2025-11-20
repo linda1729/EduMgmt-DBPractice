@@ -8,6 +8,7 @@ export const listEnrollments = ({
   status,
   year,
   term,
+  keyword,
 } = {}) => {
   return request('/api/v1/enrollments/', {
     params: {
@@ -18,6 +19,7 @@ export const listEnrollments = ({
       status,
       year,
       term,
+      q: keyword,
     },
   })
 }

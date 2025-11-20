@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from flask import Blueprint, jsonify
 from sqlalchemy import func, select
 
@@ -99,6 +101,104 @@ def dashboard_summary():
         for (enrollment, student, course) in recent_enrollments
     ]
 
+    now = datetime.utcnow()
+    thirty_days_ago = now - timedelta(days=30)
+    current_year = now.year
+
+    def _count_recent(model, column):
+        if column is None:
+            return 0
+        stmt = select(func.count()).select_from(model).where(column >= thirty_days_ago)
+        return int(db.session.scalar(stmt) or 0)
+
+    enrollment_drop_count = int(
+        db.session.scalar(
+            select(func.count()).select_from(Enrollment).where(Enrollment.status == "dropped")
+        )
+        or 0
+    )
+    teaching_total = _count_rows(Teaching)
+    teaching_with_room = int(
+        db.session.scalar(
+            select(func.count()).select_from(Teaching).where(Teaching.room_id.is_not(None))
+        )
+        or 0
+    )
+    course_reference_count = (
+        enrollment_count
+        + int(
+            db.session.scalar(select(func.count()).select_from(Teaching).where(Teaching.cno.is_not(None)))
+            or 0
+        )
+    )
+    teacher_reference_count = int(
+        db.session.scalar(select(func.count()).select_from(Teaching)) or 0
+    )
+
+    teaching_current_year = int(
+        db.session.scalar(
+            select(func.count()).select_from(Teaching).where(Teaching.year_offered >= current_year)
+        )
+        or 0
+    )
+
+    heatmap_rows = [
+        {
+            "table": "学生",
+            "metrics": {
+                "create": _count_recent(Student, Student.created_at) or student_count,
+                "read": student_count,
+                "update": _count_recent(Student, Student.updated_at),
+                "delete": enrollment_count,
+            },
+        },
+        {
+            "table": "课程",
+            "metrics": {
+                "create": _count_recent(Course, Course.created_at) or course_count,
+                "read": course_count,
+                "update": _count_recent(Course, Course.updated_at),
+                "delete": course_reference_count,
+            },
+        },
+        {
+            "table": "教师",
+            "metrics": {
+                "create": _count_recent(Teacher, Teacher.created_at) or teacher_count,
+                "read": teacher_count,
+                "update": _count_recent(Teacher, Teacher.updated_at),
+                "delete": teacher_reference_count,
+            },
+        },
+        {
+            "table": "教室",
+            "metrics": {
+                "create": classroom_count,
+                "read": classroom_count,
+                "update": 0,
+                "delete": teaching_with_room,
+            },
+        },
+        {
+            "table": "选课",
+            "metrics": {
+                "create": _count_recent(Enrollment, Enrollment.enroll_date) or enrollment_count,
+                "read": enrollment_count,
+                "update": _count_recent(Enrollment, Enrollment.updated_at),
+                "delete": enrollment_drop_count,
+            },
+        },
+        {
+            "table": "授课安排",
+            "metrics": {
+                "create": teaching_current_year or teaching_total,
+                "read": teaching_total,
+                "update": 0,
+                "delete": teaching_with_room,
+            },
+        },
+    ]
+
     return jsonify(
         {
             "totals": {
@@ -112,5 +212,6 @@ def dashboard_summary():
             "top_courses": top_course_chart,
             "status_chart": status_chart,
             "recent_enrollments": recent_payload,
+            "crud_heatmap": heatmap_rows,
         }
     )

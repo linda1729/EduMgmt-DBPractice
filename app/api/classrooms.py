@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from ..constants import ENTITY_PK_DUP_MSG, ENTITY_PK_EMPTY_MSG
 from ..extensions import db
 from ..models import Classroom
 from ..repositories.classroom_repository import ClassroomRepository
@@ -29,10 +30,14 @@ def list_classrooms():
     page = max(int(request.args.get("page", 1)), 1)
     per_page = max(min(int(request.args.get("per_page", 20)), 100), 1)
     building = request.args.get("building")
+    room_id = request.args.get("room_id")
+    room_no = request.args.get("room_no")
     keyword = request.args.get("q")
 
     classrooms, total = ClassroomRepository.list(
         building=building,
+        room_id=room_id,
+        room_no=room_no,
         keyword=keyword,
         page=page,
         per_page=per_page,
@@ -55,13 +60,19 @@ def create_classroom():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
+    room_id = str(payload["room_id"]).strip()
+    if not room_id:
+        return jsonify({"error": ENTITY_PK_EMPTY_MSG}), 400
+    if ClassroomRepository.get(room_id):
+        return jsonify({"error": ENTITY_PK_DUP_MSG}), 400
+
     try:
         capacity = int(payload["capacity"])
     except (TypeError, ValueError):
         return jsonify({"error": "capacity must be an integer"}), 400
 
     data = {
-        "room_id": payload["room_id"],
+        "room_id": room_id,
         "building": payload["building"],
         "room_no": payload["room_no"],
         "capacity": capacity,

@@ -9,6 +9,11 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from ..constants import (
+    ENTITY_PK_DUP_MSG,
+    ENTITY_PK_EMPTY_MSG,
+    REFERENTIAL_STUDENT_COURSE_MSG,
+)
 from ..extensions import db
 from ..models import Course, Enrollment, Student, TermDict
 from ..repositories.course_repository import CourseRepository
@@ -57,6 +62,7 @@ def list_enrollments():
     status = request.args.get("status")
     year = request.args.get("year")
     term = request.args.get("term")
+    keyword = request.args.get("q")
 
     year_int = int(year) if year else None
 
@@ -66,6 +72,7 @@ def list_enrollments():
         status=status,
         year=year_int,
         term=term,
+        keyword=keyword,
         page=page,
         per_page=per_page,
     )
@@ -89,19 +96,18 @@ def create_enrollment():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
-    sno = payload["student_id"]
-    cno = payload["course_id"]
+    sno = str(payload["student_id"]).strip()
+    cno = str(payload["course_id"]).strip()
+    if not sno or not cno:
+        return jsonify({"error": ENTITY_PK_EMPTY_MSG}), 400
 
     student = StudentRepository.get(sno)
-    if not student:
-        return jsonify({"error": "Student not found"}), 404
-
     course = CourseRepository.get(cno)
-    if not course:
-        return jsonify({"error": "Course not found"}), 404
+    if not student or not course:
+        return jsonify({"error": REFERENTIAL_STUDENT_COURSE_MSG}), 400
 
     if EnrollmentRepository.exists(sno, cno):
-        return jsonify({"error": "Student already enrolled in this course"}), 400
+        return jsonify({"error": ENTITY_PK_DUP_MSG}), 400
 
     if not EnrollmentRepository.prerequisite_satisfied(sno, course):
         return jsonify({"error": "Prerequisite not satisfied"}), 400

@@ -153,7 +153,15 @@
                       <form id="update-teacher-{{ teacher.tno }}" method="post" action="{{ url_for('main.update_teacher', tno=teacher.tno) }}"></form>
                       <button class="btn btn-sm btn-outline-primary" form="update-teacher-{{ teacher.tno }}" type="submit">保存</button>
                       <form method="post" action="{{ url_for('main.delete_teacher', tno=teacher.tno) }}">
-                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('确认删除教师 {{ teacher.tno }} 吗？')">删除</button>
+                        <input type="hidden" name="delete_action" value="restrict">
+                        <button
+                          class="btn btn-sm btn-outline-danger"
+                          type="button"
+                          data-delete-intro="根据参照完整性，删除教师将同步清理其授课安排（不可置空），是否继续？"
+                          onclick="return handleDeleteAction(this, '教师', false)"
+                        >
+                          删除
+                        </button>
                       </form>
                     </div>
                   </td>

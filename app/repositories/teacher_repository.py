@@ -21,13 +21,22 @@ class TeacherRepository:
         *,
         department: Optional[str],
         title: Optional[str],
+        name: Optional[str],
+        email: Optional[str],
+        phone: Optional[str],
         keyword: Optional[str],
     ) -> Query:
-        # 功能：根据院系、职称与关键字过滤教师列表。
+        # 功能：根据院系、职称、姓名、邮箱、电话及关键字过滤教师列表。
         if department:
             query = query.filter(Teacher.dno == department)
         if title:
             query = query.filter(Teacher.title == title)
+        if name:
+            query = query.filter(Teacher.tname.ilike(f"%{name}%"))
+        if email:
+            query = query.filter(Teacher.email.ilike(f"%{email}%"))
+        if phone:
+            query = query.filter(Teacher.phone.ilike(f"%{phone}%"))
         if keyword:
             like = f"%{keyword}%"
             query = query.filter(
@@ -41,13 +50,24 @@ class TeacherRepository:
         *,
         department: Optional[str] = None,
         title: Optional[str] = None,
+        name: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
         keyword: Optional[str] = None,
         page: int = 1,
         per_page: int = 20,
     ) -> Tuple[List[Teacher], int]:
         # 功能：分页查询教师并返回总数。
         query = Teacher.query.options(selectinload(Teacher.department))
-        query = cls._apply_filters(query, department=department, title=title, keyword=keyword)
+        query = cls._apply_filters(
+            query,
+            department=department,
+            title=title,
+            name=name,
+            email=email,
+            phone=phone,
+            keyword=keyword,
+        )
         total = query.count()
         items = (
             query.order_by(Teacher.tname)

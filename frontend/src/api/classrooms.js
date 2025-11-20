@@ -1,11 +1,20 @@
 import { request } from './client'
 
-export const listClassrooms = ({ page = 1, perPage = 20, building, keyword } = {}) =>
+export const listClassrooms = ({
+  page = 1,
+  perPage = 20,
+  building,
+  roomId,
+  roomNo,
+  keyword,
+} = {}) =>
   request('/api/v1/classrooms/', {
     params: {
       page,
       per_page: perPage,
       building,
+      room_id: roomId,
+      room_no: roomNo,
       q: keyword,
     },
   })

@@ -1,6 +1,6 @@
 {
-  "short_name": "CoreUI-React",
-  "name": "CoreUI-React sample",
+  "short_name": "教务系统",
+  "name": "教务系统（数据库辅助学习版）",
   "icons": [
     {
       "src": "./assets/img/favicon.png",

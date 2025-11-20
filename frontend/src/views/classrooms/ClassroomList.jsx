@@ -39,11 +39,13 @@ const defaultCreateState = {
   capacity: '',
 }
 
+const defaultFilterState = { building: '', roomId: '', roomNo: '' }
+
 const ClassroomList = () => {
   const [meta, setMeta] = useState(null)
   const [metaError, setMetaError] = useState('')
-  const [formState, setFormState] = useState({ building: '', q: '' })
-  const [filters, setFilters] = useState(formState)
+  const [formState, setFormState] = useState(() => ({ ...defaultFilterState }))
+  const [filters, setFilters] = useState(() => ({ ...defaultFilterState }))
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(pageSizeOptions[0])
   const [items, setItems] = useState([])
@@ -77,7 +79,8 @@ const ClassroomList = () => {
           page,
           perPage,
           building: filters.building || undefined,
-          keyword: filters.q || undefined,
+          roomId: filters.roomId || undefined,
+          roomNo: filters.roomNo || undefined,
         })
         setItems(response.items || [])
         setTotal(response.total || 0)
@@ -132,7 +135,7 @@ const ClassroomList = () => {
   }
 
   const resetFilters = () => {
-    const next = { building: '', q: '' }
+    const next = { ...defaultFilterState }
     setFormState(next)
     setFilters(next)
     setPage(1)
@@ -193,7 +196,9 @@ const ClassroomList = () => {
   }
 
   const handleDelete = async (roomId) => {
-    if (!window.confirm(`确认删除教室 ${roomId} 吗？`)) {
+    const confirmMessage =
+      '根据参照完整性，删除教室将把授课安排中的教室字段置为空值。是否确认执行？'
+    if (!window.confirm(confirmMessage)) {
       return
     }
     try {
@@ -298,7 +303,7 @@ const ClassroomList = () => {
         <CCardHeader className="d-flex flex-wrap justify-content-between align-items-end gap-3">
           <div>
             <h5 className="mb-0">教室列表</h5>
-            <div className="text-body-secondary small">维护教学场地基础信息，支持模糊检索</div>
+            <div className="text-body-secondary small">维护教学场地基础信息，支持楼栋/编号/房间号组合检索</div>
           </div>
           <CButton color="secondary" variant="outline" onClick={resetFilters} disabled={loading}>
             重置
@@ -317,9 +322,25 @@ const ClassroomList = () => {
                 ))}
               </CFormSelect>
             </CCol>
-            <CCol md={7}>
-              <CFormLabel htmlFor="q">关键字（编号/房间号）</CFormLabel>
-              <CFormInput id="q" name="q" value={formState.q} onChange={handleFilterChange} placeholder="例如：A1 或 101" />
+            <CCol md={4}>
+              <CFormLabel htmlFor="filter-room-id">教室编号</CFormLabel>
+              <CFormInput
+                id="filter-room-id"
+                name="roomId"
+                value={formState.roomId}
+                onChange={handleFilterChange}
+                placeholder="例如：A1-101"
+              />
+            </CCol>
+            <CCol md={3}>
+              <CFormLabel htmlFor="filter-room-no">房间号</CFormLabel>
+              <CFormInput
+                id="filter-room-no"
+                name="roomNo"
+                value={formState.roomNo}
+                onChange={handleFilterChange}
+                placeholder="例如：101"
+              />
             </CCol>
             <CCol md={1} className="d-flex align-items-end">
               <CButton type="submit" color="primary" className="w-100" disabled={loading}>

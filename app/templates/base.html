@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}教务管理平台{% endblock %}</title>
+    <title>{% block title %}教务系统（数据库辅助学习版）{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,7 +16,10 @@
     {% set current_endpoint = request.endpoint or '' %}
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
       <div class="container">
-        <a class="navbar-brand fw-semibold" href="{{ url_for('main.index') }}">教务管理平台</a>
+        <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{{ url_for('main.index') }}">
+          <img alt="系统 Logo" src="{{ url_for('static', filename='img/logo.svg') }}" width="28" height="28" class="d-inline-block align-text-top">
+          教务系统（数据库辅助学习版）
+        </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -85,6 +88,49 @@
       </div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-XTT5lU8xF75J7UFe7xT17+3HQTCBA+klTHUcHC1FxY0An3msTirlqCaCA9uMKbzg" crossorigin="anonymous"></script>
+    <script>
+      window.handleDeleteAction = function (button, entityLabel, allowNull) {
+        const form = button?.form
+        if (!form) {
+          console.warn('缺少删除表单。')
+          return false
+        }
+        const customIntro = button?.dataset?.deleteIntro?.trim()
+        const hints = [
+          customIntro || `删除 ${entityLabel} 可能影响参照完整性。`,
+          '请选择处理方式：',
+          '1 - 拒绝执行（若存在关联则终止删除）',
+          '2 - 级联删除（连同相关记录一起删除）',
+        ]
+        if (allowNull) {
+          hints.push('3 - 设置相关引用为空值')
+        }
+        const choice = window.prompt(hints.join('\n'))
+        if (!choice) {
+          alert('已取消删除操作。')
+          return false
+        }
+        const normalized = choice.trim()
+        let action = null
+        if (normalized === '1') {
+          action = 'restrict'
+        } else if (normalized === '2') {
+          action = 'cascade'
+        } else if (allowNull && normalized === '3') {
+          action = 'set_null'
+        }
+        if (!action) {
+          alert(`输入无效，请输入 1 或 2${allowNull ? ' 或 3' : ''}。`)
+          return false
+        }
+        const input = form.querySelector('input[name="delete_action"]')
+        if (input) {
+          input.value = action
+        }
+        form.submit()
+        return false
+      }
+    </script>
     {% block scripts %}{% endblock %}
   </body>
 </html>
