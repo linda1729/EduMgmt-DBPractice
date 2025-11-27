@@ -30,6 +30,7 @@ import {
   updateStudent,
 } from 'src/api/students'
 import PaginationControls from 'src/components/PaginationControls'
+import { STUDENT_ENROLL_YEAR_MIN } from 'src/constants/integrity'
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -158,9 +159,13 @@ const StudentList = () => {
       if (!createForm.sno || !createForm.name || !createForm.enroll_year) {
         throw new Error('请完整填写学号、姓名与入学年份')
       }
+      const enrollYear = Number(createForm.enroll_year)
+      if (!Number.isInteger(enrollYear) || enrollYear < STUDENT_ENROLL_YEAR_MIN) {
+        throw new Error(`入学年份需为不小于 ${STUDENT_ENROLL_YEAR_MIN} 的整数`)
+      }
       const payload = {
         ...createForm,
-        enroll_year: Number(createForm.enroll_year),
+        enroll_year: enrollYear,
         department: createForm.department || null,
         birth_date: createForm.birth_date || null,
         email: createForm.email || null,
@@ -297,6 +302,7 @@ const StudentList = () => {
                     id="create-enroll"
                     name="enroll_year"
                     type="number"
+                    min={STUDENT_ENROLL_YEAR_MIN}
                     value={createForm.enroll_year}
                     onChange={handleCreateChange}
                     required
@@ -493,6 +499,7 @@ const StudentList = () => {
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={STUDENT_ENROLL_YEAR_MIN}
                           value={edits.enroll_year ?? student.enroll_year}
                           onChange={(event) => handleRowChange(student.sno, 'enroll_year', event.target.value)}
                         />

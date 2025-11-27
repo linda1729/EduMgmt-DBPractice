@@ -130,6 +130,7 @@
                           class="btn btn-sm btn-outline-danger"
                           type="button"
                           data-delete-intro="根据参照完整性，授课安排表中的教室字段会被置空，是否确认执行？"
+                          data-has-references="{{ 'true' if classroom.teachings|length else 'false' }}"
                           onclick="return handleDeleteAction(this, '教室', true)"
                         >
                           删除

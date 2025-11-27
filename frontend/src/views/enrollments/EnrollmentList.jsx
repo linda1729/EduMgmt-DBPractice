@@ -30,6 +30,7 @@ import {
   updateEnrollment,
 } from 'src/api/enrollments'
 import PaginationControls from 'src/components/PaginationControls'
+import { ACADEMIC_YEAR_MIN, GRADE_MAX, GRADE_MIN } from 'src/constants/integrity'
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -145,10 +146,22 @@ const EnrollmentList = () => {
       if (!createForm.student_id || !createForm.course_id || !createForm.year || !createForm.term) {
         throw new Error('请填写学生、课程、学年与学期')
       }
+      const year = Number(createForm.year)
+      if (!Number.isInteger(year) || year < ACADEMIC_YEAR_MIN) {
+        throw new Error(`学年需为不小于 ${ACADEMIC_YEAR_MIN} 的整数`)
+      }
+      let grade = null
+      if (createForm.grade !== '') {
+        const parsedGrade = Number(createForm.grade)
+        if (Number.isNaN(parsedGrade) || parsedGrade < GRADE_MIN || parsedGrade > GRADE_MAX) {
+          throw new Error(`成绩需介于 ${GRADE_MIN}-${GRADE_MAX}`)
+        }
+        grade = parsedGrade
+      }
       const payload = {
         ...createForm,
-        year: Number(createForm.year),
-        grade: createForm.grade ? Number(createForm.grade) : null,
+        year,
+        grade,
       }
       await createEnrollment(payload)
       setCreateForm({
@@ -261,25 +274,27 @@ const EnrollmentList = () => {
               <CForm className="row g-3" onSubmit={handleCreate}>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-student">学生 *</CFormLabel>
-                  <CFormSelect id="create-student" name="student_id" value={createForm.student_id} onChange={handleCreateChange} required>
-                    <option value="">请选择学生</option>
-                    {(meta?.students || []).map((student) => (
-                      <option key={student.sno} value={student.sno}>
-                        {student.sno} · {student.sname}
-                      </option>
-                    ))}
-                  </CFormSelect>
+                  <CFormInput
+                    id="create-student"
+                    name="student_id"
+                    value={createForm.student_id}
+                    onChange={handleCreateChange}
+                    list="student-options"
+                    placeholder="输入学号或选择建议项"
+                    required
+                  />
                 </CCol>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-course">课程 *</CFormLabel>
-                  <CFormSelect id="create-course" name="course_id" value={createForm.course_id} onChange={handleCreateChange} required>
-                    <option value="">请选择课程</option>
-                    {(meta?.courses || []).map((course) => (
-                      <option key={course.cno} value={course.cno}>
-                        {course.cno} · {course.cname}
-                      </option>
-                    ))}
-                  </CFormSelect>
+                  <CFormInput
+                    id="create-course"
+                    name="course_id"
+                    value={createForm.course_id}
+                    onChange={handleCreateChange}
+                    list="course-options"
+                    placeholder="输入课程号或选择建议项"
+                    required
+                  />
                 </CCol>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-year">学年 *</CFormLabel>
@@ -287,6 +302,7 @@ const EnrollmentList = () => {
                     id="create-year"
                     name="year"
                     type="number"
+                    min={ACADEMIC_YEAR_MIN}
                     value={createForm.year}
                     onChange={handleCreateChange}
                     required
@@ -319,6 +335,8 @@ const EnrollmentList = () => {
                     id="create-grade"
                     name="grade"
                     type="number"
+                    min={GRADE_MIN}
+                    max={GRADE_MAX}
                     step="0.01"
                     value={createForm.grade}
                     onChange={handleCreateChange}
@@ -487,6 +505,7 @@ const EnrollmentList = () => {
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={ACADEMIC_YEAR_MIN}
                           value={edits.year ?? item.year ?? ''}
                           onChange={(event) => handleRowChange(key, 'year', event.target.value)}
                         />
@@ -521,6 +540,8 @@ const EnrollmentList = () => {
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={GRADE_MIN}
+                          max={GRADE_MAX}
                           step="0.01"
                           value={edits.grade ?? (item.grade ?? '')}
                           onChange={(event) => handleRowChange(key, 'grade', event.target.value)}

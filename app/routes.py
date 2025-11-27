@@ -25,12 +25,25 @@ from .constants import (
 )
 from .extensions import db
 from .models import Classroom, Course, Department, Enrollment, Student, Teacher, Teaching, TermDict
+from .services import (
+    describe_classroom_teaching_reference,
+    describe_course_enrollment_reference,
+    describe_course_prerequisite_reference,
+    describe_course_teaching_reference,
+    describe_student_enrollment_reference,
+    describe_teacher_teaching_reference,
+    format_integrity_violation,
+    validate_classroom_capacity,
+    validate_course_credits,
+    validate_course_hours,
+    validate_student_enroll_year,
+)
 
 bp = Blueprint("main", __name__)
 
 
 def flash_integrity_error(detail: str) -> None:
-    flash(f"操作不符合完整性约束：{detail}", "danger")
+    flash(format_integrity_violation(detail), "danger")
 
 
 @bp.route("/")
@@ -182,41 +195,42 @@ def manage_students() -> str:
             flash(ENTITY_PK_DUP_MSG, "danger")
         elif dno and db.session.get(Department, dno) is None:
             flash(REFERENTIAL_DEPARTMENT_MSG, "danger")
-        elif not (1 <= credits_raw.isdigit() and hours_raw.isdigit()):
-            pass  # handled earlier? hmm this branch is wrong
         elif not (sname and gender and enroll_year_raw.isdigit()):
             flash("请完整填写学号、姓名、性别和入学年份（数字）。", "danger")
-        elif int(enroll_year_raw) < 1990:
-            flash_integrity_error("学生入学年份不能小于 1990。")
-        elif gender not in GENDER_OPTIONS:
-            flash("性别取值非法。", "danger")
         else:
-            birth_date: datetime | None = None
-            if birth_date_raw:
-                try:
-                    birth_date = datetime.strptime(birth_date_raw, "%Y-%m-%d")
-                except ValueError:
-                    flash("生日格式不正确，应为 YYYY-MM-DD。", "warning")
-                    birth_date = None
+            enroll_year = int(enroll_year_raw)
+            violation = validate_student_enroll_year(enroll_year)
+            if violation:
+                flash_integrity_error(violation)
+            elif gender not in GENDER_OPTIONS:
+                flash("性别取值非法。", "danger")
+            else:
+                birth_date: datetime | None = None
+                if birth_date_raw:
+                    try:
+                        birth_date = datetime.strptime(birth_date_raw, "%Y-%m-%d")
+                    except ValueError:
+                        flash("生日格式不正确，应为 YYYY-MM-DD。", "warning")
+                        birth_date = None
 
-            try:
-                student = Student(
-                    sno=sno,
-                    sname=sname,
-                    gender=gender,
-                    enroll_year=int(enroll_year_raw),
-                    birth_date=birth_date,
-                    dno=dno or None,
-                    email=email,
-                    phone=phone,
-                )
-                db.session.add(student)
-                db.session.commit()
-                flash(f"学生 {sname} 创建成功。", "success")
-                return redirect(url_for("main.manage_students"))
-            except IntegrityError as exc:
-                db.session.rollback()
-                flash(f"创建学生失败：{exc.orig}", "danger")
+                try:
+                    student = Student(
+                        sno=sno,
+                        sname=sname,
+                        gender=gender,
+                        enroll_year=enroll_year,
+                        birth_date=birth_date,
+                        dno=dno or None,
+                        email=email,
+                        phone=phone,
+                    )
+                    db.session.add(student)
+                    db.session.commit()
+                    flash(f"学生 {sname} 创建成功。", "success")
+                    return redirect(url_for("main.manage_students"))
+                except IntegrityError as exc:
+                    db.session.rollback()
+                    flash(f"创建学生失败：{exc.orig}", "danger")
 
     sno_search = request.args.get("sno", "").strip()
     sname_search = request.args.get("name", "").strip()
@@ -282,10 +296,13 @@ def update_student(sno: str) -> str:
     enroll_year_raw = form.get("enroll_year", "").strip()
     if enroll_year_raw:
         if enroll_year_raw.isdigit():
-            if int(enroll_year_raw) < 1990:
-                flash_integrity_error("学生入学年份不能小于 1990，已保持原值。")
+            enroll_year = int(enroll_year_raw)
+            violation = validate_student_enroll_year(enroll_year)
+            if violation:
+                detail = violation.rstrip("。") + "，已保持原值。"
+                flash_integrity_error(detail)
             else:
-                student.enroll_year = int(enroll_year_raw)
+                student.enroll_year = enroll_year
         else:
             flash("入学年份需为数字，已保持原值。", "warning")
     birth_date_raw = form.get("birth_date", "").strip()
@@ -317,11 +334,16 @@ def delete_student(sno: str) -> str:
     else:
         action = request.form.get("delete_action", "restrict")
         has_enrollments = bool(student.enrollments)
+
+        def build_reference_detail() -> str:
+            return describe_student_enrollment_reference(student)
+
         if has_enrollments and action == "restrict":
-            flash("存在选课记录，已拒绝删除以避免破坏参照完整性。", "warning")
+            flash_integrity_error(build_reference_detail())
             return redirect(url_for("main.manage_students"))
         if has_enrollments and action == "set_null":
-            flash("选课记录无法将学号置空，请选择拒绝或级联删除。", "danger")
+            detail = build_reference_detail().rstrip("。") + "，无法通过置空解除引用。"
+            flash_integrity_error(detail)
             return redirect(url_for("main.manage_students"))
         db.session.delete(student)
         try:
@@ -394,24 +416,32 @@ def manage_courses() -> str:
         else:
             credits = int(credits_raw)
             hours = int(hours_raw)
-            is_active = is_active_value != "false"
-            try:
-                course = Course(
-                    cno=cno,
-                    cname=cname,
-                    credits=credits,
-                    hours=hours,
-                    dno=dno,
-                    prereq_cno=prereq_cno or None,
-                    is_active=is_active,
-                )
-                db.session.add(course)
-                db.session.commit()
-                flash(f"课程 {cname} 创建成功。", "success")
-                return redirect(url_for("main.manage_courses"))
-            except IntegrityError as exc:
-                db.session.rollback()
-                flash(f"创建课程失败：{exc.orig}", "danger")
+            violation = validate_course_credits(credits)
+            if violation:
+                flash_integrity_error(violation)
+            else:
+                violation = validate_course_hours(hours)
+                if violation:
+                    flash_integrity_error(violation)
+                else:
+                    is_active = is_active_value != "false"
+                    try:
+                        course = Course(
+                            cno=cno,
+                            cname=cname,
+                            credits=credits,
+                            hours=hours,
+                            dno=dno,
+                            prereq_cno=prereq_cno or None,
+                            is_active=is_active,
+                        )
+                        db.session.add(course)
+                        db.session.commit()
+                        flash(f"课程 {cname} 创建成功。", "success")
+                        return redirect(url_for("main.manage_courses"))
+                    except IntegrityError as exc:
+                        db.session.rollback()
+                        flash(f"创建课程失败：{exc.orig}", "danger")
 
     course_code_search = request.args.get("cno", "").strip()
     course_name_search = request.args.get("name", "").strip()
@@ -463,12 +493,24 @@ def update_course(cno: str) -> str:
     hours_raw = form.get("hours", "").strip()
     if credits_raw:
         if credits_raw.isdigit():
-            course.credits = int(credits_raw)
+            credits_value = int(credits_raw)
+            violation = validate_course_credits(credits_value)
+            if violation:
+                detail = violation.rstrip("。") + "，已保持原值。"
+                flash_integrity_error(detail)
+            else:
+                course.credits = credits_value
         else:
             flash("学分需为整数，已保留原值。", "warning")
     if hours_raw:
         if hours_raw.isdigit():
-            course.hours = int(hours_raw)
+            hours_value = int(hours_raw)
+            violation = validate_course_hours(hours_value)
+            if violation:
+                detail = violation.rstrip("。") + "，已保持原值。"
+                flash_integrity_error(detail)
+            else:
+                course.hours = hours_value
         else:
             flash("学时需为整数，已保留原值。", "warning")
     new_dno = form.get("dno") or None
@@ -518,13 +560,23 @@ def delete_course(cno: str) -> str:
         has_teachings = bool(course.teachings)
         has_refs = has_prereq_refs or has_enrollments or has_teachings
 
+        def build_reference_detail() -> str:
+            if has_enrollments:
+                return describe_course_enrollment_reference(course)
+            if has_teachings:
+                return describe_course_teaching_reference(course)
+            if has_prereq_refs:
+                return describe_course_prerequisite_reference(course, referencing_courses)
+            return "存在引用记录，暂无法删除。"
+
         if has_refs and action == "restrict":
-            flash("此课程仍作为先修课或存在选课/授课记录，已拒绝删除。", "warning")
+            flash_integrity_error(build_reference_detail())
             return redirect(url_for("main.manage_courses"))
 
         if action == "set_null":
             if has_enrollments or has_teachings:
-                flash("课程存在选课或授课安排，无法通过置空解除引用。", "danger")
+                detail = build_reference_detail().rstrip("。") + "，无法通过置空解除引用。"
+                flash_integrity_error(detail)
                 return redirect(url_for("main.manage_courses"))
             for ref_course in referencing_courses:
                 ref_course.prereq_cno = None
@@ -757,20 +809,25 @@ def manage_classrooms() -> str:
         elif not (building and room_no and capacity_raw.isdigit()):
             flash("请完整填写教室编号、楼栋、房间号和容量。", "danger")
         else:
-            classroom = Classroom(
-                room_id=room_id,
-                building=building,
-                room_no=room_no,
-                capacity=int(capacity_raw),
-            )
-            db.session.add(classroom)
-            try:
-                db.session.commit()
-                flash(f"教室 {room_id} 创建成功。", "success")
-                return redirect(url_for("main.manage_classrooms"))
-            except IntegrityError as exc:
-                db.session.rollback()
-                flash(f"创建教室失败：{exc.orig}", "danger")
+            capacity = int(capacity_raw)
+            violation = validate_classroom_capacity(capacity)
+            if violation:
+                flash_integrity_error(violation)
+            else:
+                classroom = Classroom(
+                    room_id=room_id,
+                    building=building,
+                    room_no=room_no,
+                    capacity=capacity,
+                )
+                db.session.add(classroom)
+                try:
+                    db.session.commit()
+                    flash(f"教室 {room_id} 创建成功。", "success")
+                    return redirect(url_for("main.manage_classrooms"))
+                except IntegrityError as exc:
+                    db.session.rollback()
+                    flash(f"创建教室失败：{exc.orig}", "danger")
 
     classrooms = (
         db.session.execute(
@@ -806,7 +863,13 @@ def update_classroom(room_id: str) -> str:
     capacity_raw = form.get("capacity", "").strip()
     if capacity_raw:
         if capacity_raw.isdigit():
-            classroom.capacity = int(capacity_raw)
+            capacity = int(capacity_raw)
+            violation = validate_classroom_capacity(capacity)
+            if violation:
+                detail = violation.rstrip("。") + "，已保持原值。"
+                flash_integrity_error(detail)
+            else:
+                classroom.capacity = capacity
         else:
             flash("容量需为整数，已保持原值。", "warning")
 
@@ -830,8 +893,10 @@ def delete_classroom(room_id: str) -> str:
     else:
         action = request.form.get("delete_action", "restrict")
         has_teachings = bool(classroom.teachings)
+        def build_reference_detail() -> str:
+            return describe_classroom_teaching_reference(classroom)
         if has_teachings and action == "restrict":
-            flash("该教室仍有关联授课安排，已拒绝删除。", "warning")
+            flash_integrity_error(build_reference_detail())
             return redirect(url_for("main.manage_classrooms"))
         if has_teachings and action == "set_null":
             for teaching in classroom.teachings:
@@ -970,11 +1035,15 @@ def delete_teacher(tno: str) -> str:
     else:
         action = request.form.get("delete_action", "restrict")
         has_teachings = bool(teacher.teachings)
+
+        def build_reference_detail() -> str:
+            return describe_teacher_teaching_reference(teacher)
         if has_teachings and action == "restrict":
-            flash("该教师仍有关联授课安排，已拒绝删除。", "warning")
+            flash_integrity_error(build_reference_detail())
             return redirect(url_for("main.manage_teachers"))
         if has_teachings and action == "set_null":
-            flash("授课安排无法将教师置空，请选择拒绝或级联删除。", "danger")
+            detail = build_reference_detail().rstrip("。") + "，无法通过置空解除引用。"
+            flash_integrity_error(detail)
             return redirect(url_for("main.manage_teachers"))
         if action == "cascade":
             for teaching in list(teacher.teachings):

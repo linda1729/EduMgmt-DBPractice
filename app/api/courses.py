@@ -17,6 +17,14 @@ from ..constants import (
 from ..extensions import db
 from ..models import Course, Department
 from ..repositories.course_repository import CourseRepository
+from ..services import (
+    describe_course_enrollment_reference,
+    describe_course_prerequisite_reference,
+    describe_course_teaching_reference,
+    format_integrity_violation,
+    validate_course_credits,
+    validate_course_hours,
+)
 
 bp = Blueprint("courses_api", __name__)
 
@@ -100,6 +108,12 @@ def create_course():
         hours = _parse_int("hours", payload["hours"], minimum=1)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    detail = validate_course_credits(credits)
+    if detail:
+        return jsonify({"error": format_integrity_violation(detail)}), 400
+    detail = validate_course_hours(hours)
+    if detail:
+        return jsonify({"error": format_integrity_violation(detail)}), 400
 
     department_raw = payload.get("department")
     if isinstance(department_raw, str):
@@ -178,11 +192,17 @@ def update_course(cno: str):
             update_data["credits"] = _parse_int("credits", payload["credits"], minimum=1)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        detail = validate_course_credits(update_data["credits"])
+        if detail:
+            return jsonify({"error": format_integrity_violation(detail)}), 400
     if "hours" in payload:
         try:
             update_data["hours"] = _parse_int("hours", payload["hours"], minimum=1)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        detail = validate_course_hours(update_data["hours"])
+        if detail:
+            return jsonify({"error": format_integrity_violation(detail)}), 400
 
     try:
         course = CourseRepository.update(course, update_data)
@@ -200,7 +220,19 @@ def delete_course(cno: str):
         return jsonify({"error": "Course not found"}), 404
 
     if course.enrollments:
-        return jsonify({"error": "Cannot delete course with enrollments"}), 400
+        detail = describe_course_enrollment_reference(course)
+        return jsonify({"error": format_integrity_violation(detail)}), 400
+
+    if course.teachings:
+        detail = describe_course_teaching_reference(course)
+        return jsonify({"error": format_integrity_violation(detail)}), 400
+
+    referencing_courses = (
+        db.session.execute(select(Course).where(Course.prereq_cno == cno)).scalars().all()
+    )
+    if referencing_courses:
+        detail = describe_course_prerequisite_reference(course, referencing_courses)
+        return jsonify({"error": format_integrity_violation(detail)}), 400
 
     CourseRepository.delete(course)
     return jsonify({"status": "deleted"})

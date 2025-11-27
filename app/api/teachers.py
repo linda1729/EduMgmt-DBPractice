@@ -17,6 +17,7 @@ from ..constants import (
 from ..extensions import db
 from ..models import Department, Teacher
 from ..repositories.teacher_repository import TeacherRepository
+from ..services import describe_teacher_teaching_reference, format_integrity_violation
 
 bp = Blueprint("teachers_api", __name__)
 
@@ -152,6 +153,9 @@ def delete_teacher(tno: str):
     teacher = TeacherRepository.get(tno)
     if not teacher:
         return jsonify({"error": "Teacher not found"}), 404
+    if teacher.teachings:
+        detail = describe_teacher_teaching_reference(teacher)
+        return jsonify({"error": format_integrity_violation(detail)}), 400
     TeacherRepository.delete(teacher)
     return jsonify({"status": "deleted"})
 

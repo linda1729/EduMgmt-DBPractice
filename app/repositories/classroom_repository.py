@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import Query, selectinload
 
 from ..extensions import db
 from ..models import Classroom
@@ -60,7 +60,8 @@ class ClassroomRepository:
         )
         total = query.count()
         items = (
-            query.order_by(Classroom.building, Classroom.room_no)
+            query.options(selectinload(Classroom.teachings))
+            .order_by(Classroom.building, Classroom.room_no)
             .offset((page - 1) * per_page)
             .limit(per_page)
             .all()

@@ -31,6 +31,12 @@ import {
   updateCourse,
 } from 'src/api/courses'
 import PaginationControls from 'src/components/PaginationControls'
+import {
+  COURSE_CREDIT_MAX,
+  COURSE_CREDIT_MIN,
+  COURSE_HOUR_MAX,
+  COURSE_HOUR_MIN,
+} from 'src/constants/integrity'
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -150,11 +156,19 @@ const CourseList = () => {
       if (!createForm.cno || !createForm.name || !createForm.credits || !createForm.hours) {
         throw new Error('请填写完整的课程号、名称、学分与学时')
       }
+      const credits = Number(createForm.credits)
+      const hours = Number(createForm.hours)
+      if (!Number.isInteger(credits) || credits < COURSE_CREDIT_MIN || credits > COURSE_CREDIT_MAX) {
+        throw new Error(`学分需介于 ${COURSE_CREDIT_MIN}-${COURSE_CREDIT_MAX}`)
+      }
+      if (!Number.isInteger(hours) || hours < COURSE_HOUR_MIN || hours > COURSE_HOUR_MAX) {
+        throw new Error(`学时需介于 ${COURSE_HOUR_MIN}-${COURSE_HOUR_MAX}`)
+      }
       const payload = {
         cno: createForm.cno,
         name: createForm.name,
-        credits: Number(createForm.credits),
-        hours: Number(createForm.hours),
+        credits,
+        hours,
         department: createForm.department || null,
         prerequisite: createForm.prerequisite || null,
         is_active: createForm.is_active,
@@ -264,6 +278,8 @@ const CourseList = () => {
                     id="create-credits"
                     name="credits"
                     type="number"
+                    min={COURSE_CREDIT_MIN}
+                    max={COURSE_CREDIT_MAX}
                     value={createForm.credits}
                     onChange={handleCreateChange}
                     required
@@ -275,6 +291,8 @@ const CourseList = () => {
                     id="create-hours"
                     name="hours"
                     type="number"
+                    min={COURSE_HOUR_MIN}
+                    max={COURSE_HOUR_MAX}
                     value={createForm.hours}
                     onChange={handleCreateChange}
                     required
@@ -461,6 +479,8 @@ const CourseList = () => {
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={COURSE_CREDIT_MIN}
+                          max={COURSE_CREDIT_MAX}
                           value={edits.credits ?? course.credits}
                           onChange={(event) => handleRowChange(course.cno, 'credits', event.target.value)}
                         />
@@ -469,6 +489,8 @@ const CourseList = () => {
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={COURSE_HOUR_MIN}
+                          max={COURSE_HOUR_MAX}
                           value={edits.hours ?? course.hours}
                           onChange={(event) => handleRowChange(course.cno, 'hours', event.target.value)}
                         />

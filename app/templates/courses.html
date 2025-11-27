@@ -190,6 +190,7 @@
                           class="btn btn-sm btn-outline-danger"
                           type="button"
                           data-delete-intro="根据参照完整性，删除课程将影响选课/授课记录及其它课程的先修关系。请选择拒绝、级联或置空策略。"
+                          data-has-references="{{ 'true' if (course.enrollments|length) or (course.teachings|length) or (course.advanced_courses|length) else 'false' }}"
                           onclick="return handleDeleteAction(this, '课程', true)"
                         >删除</button>
                       </form>

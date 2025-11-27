@@ -17,6 +17,7 @@ from ..constants import (
 from ..extensions import db
 from ..models import Department, Student
 from ..repositories.student_repository import StudentRepository
+from ..services import format_integrity_violation, validate_student_enroll_year
 
 bp = Blueprint("students_api", __name__)
 
@@ -110,6 +111,9 @@ def create_student():
         enroll_year = int(payload["enroll_year"])
     except (TypeError, ValueError):
         return jsonify({"error": "enroll_year must be an integer"}), 400
+    detail = validate_student_enroll_year(enroll_year)
+    if detail:
+        return jsonify({"error": format_integrity_violation(detail)}), 400
 
     department = payload.get("department")
     if department and not db.session.get(Department, department):
@@ -187,6 +191,9 @@ def update_student(sno: str):
             update_data["enroll_year"] = int(payload["enroll_year"])
         except (TypeError, ValueError):
             return jsonify({"error": "enroll_year must be an integer"}), 400
+        detail = validate_student_enroll_year(update_data["enroll_year"])
+        if detail:
+            return jsonify({"error": format_integrity_violation(detail)}), 400
 
     if "name" in payload:
         update_data["sname"] = payload["name"]

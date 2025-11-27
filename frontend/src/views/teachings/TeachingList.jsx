@@ -29,6 +29,11 @@ import {
   updateTeaching,
 } from 'src/api/teachings'
 import PaginationControls from 'src/components/PaginationControls'
+import {
+  ACADEMIC_YEAR_MIN,
+  CLASSROOM_CAPACITY_MAX,
+  CLASSROOM_CAPACITY_MIN,
+} from 'src/constants/integrity'
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -118,6 +123,30 @@ const TeachingList = () => {
     }
   }, [meta])
 
+  const courseNameMap = useMemo(() => {
+    const map = {}
+    ;(meta?.courses || []).forEach((course) => {
+      map[course.cno] = course.cname
+    })
+    return map
+  }, [meta])
+
+  const teacherNameMap = useMemo(() => {
+    const map = {}
+    ;(meta?.teachers || []).forEach((teacher) => {
+      map[teacher.tno] = teacher.tname
+    })
+    return map
+  }, [meta])
+
+  const roomLabelMap = useMemo(() => {
+    const map = {}
+    ;(meta?.classrooms || []).forEach((room) => {
+      map[room.room_id] = room.label
+    })
+    return map
+  }, [meta])
+
   const handleFilterChange = (event) => {
     const { name, value } = event.target
     setFormState((prev) => ({ ...prev, [name]: value }))
@@ -149,13 +178,29 @@ const TeachingList = () => {
       if (!createForm.course_id || !createForm.teacher_id || !createForm.year || !createForm.term) {
         throw new Error('请填写课程、教师、学年与学期')
       }
+      const year = Number(createForm.year)
+      if (!Number.isInteger(year) || year < ACADEMIC_YEAR_MIN) {
+        throw new Error(`开课年份需为不小于 ${ACADEMIC_YEAR_MIN} 的整数`)
+      }
+      let capacityValue
+      if (createForm.capacity !== '') {
+        const parsedCapacity = Number(createForm.capacity)
+        if (
+          !Number.isInteger(parsedCapacity) ||
+          parsedCapacity < CLASSROOM_CAPACITY_MIN ||
+          parsedCapacity > CLASSROOM_CAPACITY_MAX
+        ) {
+          throw new Error(`容量需介于 ${CLASSROOM_CAPACITY_MIN}-${CLASSROOM_CAPACITY_MAX}`)
+        }
+        capacityValue = parsedCapacity
+      }
       await createTeaching({
         course_id: createForm.course_id,
         teacher_id: createForm.teacher_id,
-        year: Number(createForm.year),
+        year,
         term: createForm.term,
         room_id: createForm.room_id || null,
-        capacity: createForm.capacity ? Number(createForm.capacity) : undefined,
+        capacity: capacityValue,
         start_date: createForm.start_date || null,
         end_date: createForm.end_date || null,
       })
@@ -250,25 +295,27 @@ const TeachingList = () => {
               <CForm className="row g-3" onSubmit={handleCreate}>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-course">课程 *</CFormLabel>
-                  <CFormSelect id="create-course" name="course_id" value={createForm.course_id} onChange={handleCreateChange} required>
-                    <option value="">请选择课程</option>
-                    {(meta?.courses || []).map((course) => (
-                      <option key={course.cno} value={course.cno}>
-                        {course.cno} · {course.cname}
-                      </option>
-                    ))}
-                  </CFormSelect>
+                  <CFormInput
+                    id="create-course"
+                    name="course_id"
+                    value={createForm.course_id}
+                    onChange={handleCreateChange}
+                    list="teaching-course-options"
+                    placeholder="输入课程号或选择建议项"
+                    required
+                  />
                 </CCol>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-teacher">教师 *</CFormLabel>
-                  <CFormSelect id="create-teacher" name="teacher_id" value={createForm.teacher_id} onChange={handleCreateChange} required>
-                    <option value="">请选择教师</option>
-                    {(meta?.teachers || []).map((teacher) => (
-                      <option key={teacher.tno} value={teacher.tno}>
-                        {teacher.tno} · {teacher.tname}
-                      </option>
-                    ))}
-                  </CFormSelect>
+                  <CFormInput
+                    id="create-teacher"
+                    name="teacher_id"
+                    value={createForm.teacher_id}
+                    onChange={handleCreateChange}
+                    list="teaching-teacher-options"
+                    placeholder="输入教师工号或选择建议项"
+                    required
+                  />
                 </CCol>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-year">开课年份 *</CFormLabel>
@@ -276,6 +323,7 @@ const TeachingList = () => {
                     id="create-year"
                     name="year"
                     type="number"
+                    min={ACADEMIC_YEAR_MIN}
                     value={createForm.year}
                     onChange={handleCreateChange}
                     required
@@ -294,14 +342,14 @@ const TeachingList = () => {
                 </CCol>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-room">教室</CFormLabel>
-                  <CFormSelect id="create-room" name="room_id" value={createForm.room_id} onChange={handleCreateChange}>
-                    <option value="">未指定</option>
-                    {(meta?.classrooms || []).map((room) => (
-                      <option key={room.room_id} value={room.room_id}>
-                        {room.label}
-                      </option>
-                    ))}
-                  </CFormSelect>
+                  <CFormInput
+                    id="create-room"
+                    name="room_id"
+                    value={createForm.room_id}
+                    onChange={handleCreateChange}
+                    list="teaching-room-options"
+                    placeholder="输入教室 ID，留空为未指定"
+                  />
                 </CCol>
                 <CCol sm={6}>
                   <CFormLabel htmlFor="create-capacity">容量</CFormLabel>
@@ -309,6 +357,8 @@ const TeachingList = () => {
                     id="create-capacity"
                     name="capacity"
                     type="number"
+                    min={CLASSROOM_CAPACITY_MIN}
+                    max={CLASSROOM_CAPACITY_MAX}
                     value={createForm.capacity}
                     onChange={handleCreateChange}
                   />
@@ -391,6 +441,13 @@ const TeachingList = () => {
                 ))}
               </datalist>
             </CCol>
+            <datalist id="teaching-room-options">
+              {(meta?.classrooms || []).map((room) => (
+                <option key={room.room_id} value={room.room_id}>
+                  {room.label}
+                </option>
+              ))}
+            </datalist>
             <CCol md={2}>
               <CFormLabel htmlFor="term">学期</CFormLabel>
               <CFormSelect id="term" name="term" value={formState.term} onChange={handleFilterChange}>
@@ -455,39 +512,41 @@ const TeachingList = () => {
               <CTableBody>
                 {items.map((item) => {
                   const edits = rowEdits[item.teach_id] || {}
+                  const currentCourse = edits.course_id ?? item.course_id ?? ''
+                  const currentTeacher = edits.teacher_id ?? item.teacher_id ?? ''
+                  const currentRoom = edits.room_id ?? item.room_id ?? ''
                   return (
                     <CTableRow key={item.teach_id}>
                       <CTableDataCell>
-                        <CFormSelect
+                        <CFormInput
                           size="sm"
-                          value={edits.course_id ?? item.course_id}
+                          value={currentCourse}
                           onChange={(event) => handleRowChange(item.teach_id, 'course_id', event.target.value)}
-                        >
-                          {(meta?.courses || []).map((course) => (
-                            <option key={course.cno} value={course.cno}>
-                              {course.cno} · {course.cname}
-                            </option>
-                          ))}
-                        </CFormSelect>
+                          list="teaching-course-options"
+                          placeholder="课程号"
+                        />
+                        <div className="text-body-secondary small">
+                          {currentCourse ? courseNameMap[currentCourse] || '—' : '—'}
+                        </div>
                       </CTableDataCell>
                       <CTableDataCell>
-                        <CFormSelect
+                        <CFormInput
                           size="sm"
-                          value={edits.teacher_id ?? item.teacher_id}
+                          value={currentTeacher}
                           onChange={(event) => handleRowChange(item.teach_id, 'teacher_id', event.target.value)}
-                        >
-                          {(meta?.teachers || []).map((teacher) => (
-                            <option key={teacher.tno} value={teacher.tno}>
-                              {teacher.tno} · {teacher.tname}
-                            </option>
-                          ))}
-                        </CFormSelect>
+                          list="teaching-teacher-options"
+                          placeholder="教师工号"
+                        />
+                        <div className="text-body-secondary small">
+                          {currentTeacher ? teacherNameMap[currentTeacher] || '—' : '—'}
+                        </div>
                       </CTableDataCell>
                       <CTableDataCell>
                         <div className="d-flex gap-2">
                           <CFormInput
                             size="sm"
                             type="number"
+                            min={ACADEMIC_YEAR_MIN}
                             value={edits.year ?? item.year ?? ''}
                             onChange={(event) => handleRowChange(item.teach_id, 'year', event.target.value)}
                           />
@@ -505,23 +564,23 @@ const TeachingList = () => {
                         </div>
                       </CTableDataCell>
                       <CTableDataCell>
-                        <CFormSelect
+                        <CFormInput
                           size="sm"
-                          value={edits.room_id ?? item.room_id ?? ''}
+                          value={currentRoom}
                           onChange={(event) => handleRowChange(item.teach_id, 'room_id', event.target.value)}
-                        >
-                          <option value="">未指定</option>
-                          {(meta?.classrooms || []).map((room) => (
-                            <option key={room.room_id} value={room.room_id}>
-                              {room.label}
-                            </option>
-                          ))}
-                        </CFormSelect>
+                          list="teaching-room-options"
+                          placeholder="教室编号"
+                        />
+                        <div className="text-body-secondary small">
+                          {currentRoom ? roomLabelMap[currentRoom] || '—' : '未指定'}
+                        </div>
                       </CTableDataCell>
                       <CTableDataCell>
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={CLASSROOM_CAPACITY_MIN}
+                          max={CLASSROOM_CAPACITY_MAX}
                           value={edits.capacity ?? item.capacity ?? ''}
                           onChange={(event) => handleRowChange(item.teach_id, 'capacity', event.target.value)}
                         />

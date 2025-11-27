@@ -19,6 +19,7 @@ from ..models import Course, Enrollment, Student, TermDict
 from ..repositories.course_repository import CourseRepository
 from ..repositories.enrollment_repository import EnrollmentRepository
 from ..repositories.student_repository import StudentRepository
+from ..services import format_integrity_violation
 
 bp = Blueprint("enrollments_api", __name__)
 
@@ -48,7 +49,7 @@ def _parse_grade(value: Any) -> Decimal:
     except Exception as exc:  # noqa: BLE001 - capture conversion errors
         raise ValueError("grade must be a number") from exc
     if grade < 0 or grade > 100:
-        raise ValueError("grade must be between 0 and 100")
+        raise ValueError(format_integrity_violation("成绩必须在 0 到 100 之间。"))
     return grade
 
 

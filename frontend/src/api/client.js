@@ -1,3 +1,5 @@
+import { INTEGRITY_VIOLATION_PREFIX } from 'src/constants/integrity'
+
 const envBase = (import.meta.env.VITE_API_BASE_URL || '').trim()
 let rawBase = envBase ? envBase.replace(/\/$/, '') : ''
 let absoluteBase = /^https?:/i.test(rawBase)
@@ -65,6 +67,14 @@ export async function request(path, options = {}) {
       (payload && payload.message) ||
       (typeof payload === 'string' && payload) ||
       '请求失败'
+    const normalized = typeof message === 'string' ? message.trimStart() : ''
+    if (
+      normalized.startsWith(INTEGRITY_VIOLATION_PREFIX) &&
+      typeof window !== 'undefined' &&
+      typeof window.alert === 'function'
+    ) {
+      window.alert(message)
+    }
     throw new Error(message)
   }
 

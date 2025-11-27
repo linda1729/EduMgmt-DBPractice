@@ -12,6 +12,7 @@ from ..constants import ENTITY_PK_DUP_MSG, ENTITY_PK_EMPTY_MSG
 from ..extensions import db
 from ..models import Classroom
 from ..repositories.classroom_repository import ClassroomRepository
+from ..services import format_integrity_violation, validate_classroom_capacity
 
 bp = Blueprint("classrooms_api", __name__)
 
@@ -22,6 +23,7 @@ def _serialize_classroom(classroom: Classroom) -> Dict[str, Any]:
         "building": classroom.building,
         "room_no": classroom.room_no,
         "capacity": classroom.capacity,
+        "teaching_count": len(classroom.teachings or []),
     }
 
 
@@ -70,6 +72,9 @@ def create_classroom():
         capacity = int(payload["capacity"])
     except (TypeError, ValueError):
         return jsonify({"error": "capacity must be an integer"}), 400
+    detail = validate_classroom_capacity(capacity)
+    if detail:
+        return jsonify({"error": format_integrity_violation(detail)}), 400
 
     data = {
         "room_id": room_id,
@@ -112,6 +117,9 @@ def update_classroom(room_id: str):
             update_data["capacity"] = int(payload["capacity"])
         except (TypeError, ValueError):
             return jsonify({"error": "capacity must be an integer"}), 400
+        detail = validate_classroom_capacity(update_data["capacity"])
+        if detail:
+            return jsonify({"error": format_integrity_violation(detail)}), 400
 
     try:
         classroom = ClassroomRepository.update(classroom, update_data)

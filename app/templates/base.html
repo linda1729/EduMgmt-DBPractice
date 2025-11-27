@@ -14,6 +14,7 @@
   </head>
   <body class="bg-light d-flex flex-column min-vh-100">
     {% set current_endpoint = request.endpoint or '' %}
+    {% set integrity_prefix = '操作不符合完整性约束' %}
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
       <div class="container">
         <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" href="{{ url_for('main.index') }}">
@@ -71,7 +72,15 @@
             <div class="mb-3">
               {% for category, message in messages %}
                 {% set bs_category = category if category in ['primary','secondary','success','danger','warning','info','light','dark'] else 'info' %}
-                <div class="alert alert-{{ bs_category }} alert-dismissible fade show" role="alert">
+                {% set is_integrity_violation = message.startswith(integrity_prefix) %}
+                <div
+                  class="alert alert-{{ bs_category }} alert-dismissible fade show"
+                  role="alert"
+                  {% if is_integrity_violation %}
+                    data-integrity-alert="true"
+                    data-integrity-message="{{ message|e }}"
+                  {% endif %}
+                >
                   {{ message }}
                   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
@@ -93,6 +102,16 @@
         const form = button?.form
         if (!form) {
           console.warn('缺少删除表单。')
+          return false
+        }
+        const hasReferences = (button?.dataset?.hasReferences || '').toLowerCase() === 'true'
+        if (!hasReferences) {
+          const defaultAction = button?.dataset?.defaultAction || 'restrict'
+          const input = form.querySelector('input[name="delete_action"]')
+          if (input) {
+            input.value = defaultAction
+          }
+          form.submit()
           return false
         }
         const customIntro = button?.dataset?.deleteIntro?.trim()
@@ -130,6 +149,23 @@
         form.submit()
         return false
       }
+
+      ;(function () {
+        const showIntegrityAlerts = () => {
+          const alertNodes = document.querySelectorAll('[data-integrity-alert="true"]')
+          alertNodes.forEach((node) => {
+            const message = node?.dataset?.integrityMessage
+            if (message) {
+              window.alert(message)
+            }
+          })
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', showIntegrityAlerts, { once: true })
+        } else {
+          showIntegrityAlerts()
+        }
+      })()
     </script>
     {% block scripts %}{% endblock %}
   </body>

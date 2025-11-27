@@ -15,6 +15,7 @@ import {
 } from '@coreui/react'
 
 import { createEnrollment, getEnrollment, updateEnrollment } from 'src/api/enrollments'
+import { ACADEMIC_YEAR_MIN, GRADE_MAX, GRADE_MIN } from 'src/constants/integrity'
 
 const statusOptions = [
   { label: '在读 (enrolled)', value: 'enrolled' },
@@ -81,22 +82,28 @@ const EnrollmentForm = () => {
       return
     }
 
+    const yearValue = Number(form.year)
+    if (!Number.isInteger(yearValue) || yearValue < ACADEMIC_YEAR_MIN) {
+      setError(`学年需为不小于 ${ACADEMIC_YEAR_MIN} 的整数`)
+      return
+    }
+    let gradeValue = null
+    if (form.grade !== '') {
+      const parsedGrade = Number(form.grade)
+      if (Number.isNaN(parsedGrade) || parsedGrade < GRADE_MIN || parsedGrade > GRADE_MAX) {
+        setError(`成绩需介于 ${GRADE_MIN}-${GRADE_MAX}`)
+        return
+      }
+      gradeValue = parsedGrade
+    }
+
     const payload = {
       student_id: form.student_id.trim(),
       course_id: form.course_id.trim(),
-      year: Number(form.year),
+      year: yearValue,
       term: form.term.trim(),
       status: form.status,
-      grade: form.grade === '' ? null : Number(form.grade),
-    }
-
-    if (Number.isNaN(payload.year)) {
-      setError('学年需为数字')
-      return
-    }
-    if (payload.grade !== null && Number.isNaN(payload.grade)) {
-      setError('成绩需为数字')
-      return
+      grade: gradeValue,
     }
 
     try {
@@ -159,6 +166,7 @@ const EnrollmentForm = () => {
                 type="number"
                 id="year"
                 name="year"
+                min={ACADEMIC_YEAR_MIN}
                 value={form.year}
                 onChange={handleChange}
                 required
@@ -184,6 +192,8 @@ const EnrollmentForm = () => {
                 type="number"
                 id="grade"
                 name="grade"
+                min={GRADE_MIN}
+                max={GRADE_MAX}
                 value={form.grade}
                 onChange={handleChange}
                 placeholder="选填"

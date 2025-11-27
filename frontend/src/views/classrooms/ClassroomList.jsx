@@ -29,6 +29,7 @@ import {
   updateClassroom,
 } from 'src/api/classrooms'
 import PaginationControls from 'src/components/PaginationControls'
+import { CLASSROOM_CAPACITY_MAX, CLASSROOM_CAPACITY_MIN } from 'src/constants/integrity'
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -154,11 +155,19 @@ const ClassroomList = () => {
       if (!createForm.room_id || !createForm.building || !createForm.room_no || !createForm.capacity) {
         throw new Error('请填写教室编号、楼栋、房间号与容量')
       }
+      const capacity = Number(createForm.capacity)
+      if (
+        !Number.isInteger(capacity) ||
+        capacity < CLASSROOM_CAPACITY_MIN ||
+        capacity > CLASSROOM_CAPACITY_MAX
+      ) {
+        throw new Error(`教室容量需介于 ${CLASSROOM_CAPACITY_MIN}-${CLASSROOM_CAPACITY_MAX}`)
+      }
       await createClassroom({
         room_id: createForm.room_id.trim(),
         building: createForm.building.trim(),
         room_no: createForm.room_no.trim(),
-        capacity: Number(createForm.capacity),
+        capacity,
       })
       setCreateForm(defaultCreateState)
       setRefreshKey((prev) => prev + 1)
@@ -195,14 +204,17 @@ const ClassroomList = () => {
     }
   }
 
-  const handleDelete = async (roomId) => {
-    const confirmMessage =
-      '根据参照完整性，删除教室将把授课安排中的教室字段置为空值。是否确认执行？'
-    if (!window.confirm(confirmMessage)) {
-      return
+  const handleDelete = async (room) => {
+    const hasTeachings = Number(room.teaching_count || 0) > 0
+    if (hasTeachings) {
+      const confirmMessage =
+        '根据参照完整性，删除教室将把授课安排中的教室字段置为空值。是否确认执行？'
+      if (!window.confirm(confirmMessage)) {
+        return
+      }
     }
     try {
-      await deleteClassroom(roomId)
+      await deleteClassroom(room.room_id)
       setRefreshKey((prev) => prev + 1)
     } catch (err) {
       setError(err.message || '删除教室失败')
@@ -272,6 +284,8 @@ const ClassroomList = () => {
                     id="create-capacity"
                     name="capacity"
                     type="number"
+                    min={CLASSROOM_CAPACITY_MIN}
+                    max={CLASSROOM_CAPACITY_MAX}
                     value={createForm.capacity}
                     onChange={handleCreateChange}
                     required
@@ -410,6 +424,8 @@ const ClassroomList = () => {
                         <CFormInput
                           size="sm"
                           type="number"
+                          min={CLASSROOM_CAPACITY_MIN}
+                          max={CLASSROOM_CAPACITY_MAX}
                           value={edits.capacity ?? room.capacity}
                           onChange={(event) => handleRowChange(room.room_id, 'capacity', event.target.value)}
                         />
@@ -419,7 +435,7 @@ const ClassroomList = () => {
                           <CButton size="sm" color="primary" variant="outline" onClick={() => handleSaveRow(room)}>
                             保存
                           </CButton>
-                          <CButton size="sm" color="danger" variant="outline" onClick={() => handleDelete(room.room_id)}>
+                          <CButton size="sm" color="danger" variant="outline" onClick={() => handleDelete(room)}>
                             删除
                           </CButton>
                         </div>

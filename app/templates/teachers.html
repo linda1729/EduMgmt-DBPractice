@@ -158,6 +158,7 @@
                           class="btn btn-sm btn-outline-danger"
                           type="button"
                           data-delete-intro="根据参照完整性，删除教师将同步清理其授课安排（不可置空），是否继续？"
+                          data-has-references="{{ 'true' if teacher.teachings|length else 'false' }}"
                           onclick="return handleDeleteAction(this, '教师', false)"
                         >
                           删除

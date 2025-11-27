@@ -4,7 +4,6 @@ __pycache__/
 
 # Virtual env
 .venv/
-.venv_codex/
 
 # Environment files
 .env
